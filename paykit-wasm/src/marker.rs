@@ -96,7 +96,7 @@ pub fn get_receiver_marker_js(
                 set(
                     &obj,
                     "receiverPath",
-                    &JsValue::from_str(&marker.receiver_path.to_string()),
+                    &JsValue::from_str(marker.receiver_path.as_ref()),
                 );
                 set(
                     &obj,

@@ -146,7 +146,7 @@ additively:
 
 | File | SHA-256 |
 | --- | --- |
-| `pkg/paykit_wasm_bg.wasm` | `a62f2d30b7cf9b7237f2b687a8627a471e4906b1bd5bc80406bf60d3f0fbe545` |
+| `pkg/paykit_wasm_bg.wasm` | `58b560c1f3c70fbf2a0438dd87484f1659e19fd9a438741b2682bf5b1fd0cc96` |
 | `pkg/paykit_wasm.js` | `d1b066de78c4e1069a77cffd743d44005fc15931d5b1caa50e5284cb924baf77` |
 | `pkg/paykit_wasm.d.ts` | `a8388c144d16a88963b76563255bae05ced9b43d8f13d1cf736ee15b6de230f9` |
 | `pkg/paykit_wasm_bg.wasm.d.ts` | `b92ceda67ff978dccc29a65aa8a786a341e50d532e2dcc1ec5b4684d172173ae` |
