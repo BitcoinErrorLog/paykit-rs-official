@@ -1,0 +1,215 @@
+# paykit-wasm
+
+Browser WASM binding for the **Paykit Encrypted Link messaging surface**.
+
+This crate compiles `paykit-lib`'s Encrypted Link APIs (and the `pubky`
+session/auth machinery they ride on) to `wasm32-unknown-unknown` and packages
+them with `wasm-pack` for browser use. It exists so a web client can hold a
+receiver-scoped Noise key and run the reviewed Paykit crypto locally — i.e.
+end-to-end-encrypted user↔user messaging where no service operator ever holds
+the keys — without a native app and **without the Pubky identity secret ever
+entering the browser** (sessions come from the Ring-approved `pubkyauth` flow;
+link crypto uses an independent random receiver Noise key).
+
+Status: **experiment / proof of packaging**, built on a fork of
+`pubky/paykit-rs`. See "Provenance" and "Known limitations" before using it
+for anything real.
+
+## What is bound (messaging only)
+
+| Area | JS API |
+| --- | --- |
+| Receiver Noise keys | `generateNoiseSecretKey()`, `noisePublicKeyFromSecret()` (mirror `paykit_sdk::ReceiverNoiseSecretKey`) |
+| Client / sessions | `PubkyClient` (`new`, `testnet`), `startAuthFlow(caps)` → `AuthFlowHandle.authorizationUrl()` / `awaitApproval()`; `signinWithSecret` / `signupWithSecret` (dev/test only) |
+| Receiver discovery | `publishReceiverMarker`, `getReceiverMarker`, `removeReceiverMarker` |
+| Handshake | `initiateEncryptedLink`, `acceptEncryptedLink`, `LinkHandshakeHandle.advance()/snapshot()/setMaxRecoveryAttempts()`, `restoreEncryptedLinkHandshake` |
+| Messaging | `EncryptedLinkHandle.sendPrivateApplicationMessageJson()` (accepts unknown kinds by contract), `receivePrivateApplicationMessages()`, `snapshot()`, `setMaxSendRetries()`, `close()`, `restoreEncryptedLink`, `clearEncryptedLinkOutbox` |
+| Constants | `maxNoiseMessageLen()` (1000), `noiseTagLen()` (16) |
+| Test/vector surface | `MemoryNoiseSession` — the same `pubky_noise::snow_crypto::DataLinkContext` crypto (Noise `XX_25519_ChaChaPoly_SHA256`) with caller-shuttled packets instead of homeserver outboxes; used by the smoke test |
+
+**Not bound (deliberately):** the entire payments surface of paykit-lib
+(payment requests/acceptance/rejection/cancellation/proof, receipts, private
+payment lists, payment endpoints, pubky routing beyond receiver markers), and
+the `paykit-sdk` stateful runtime including `SdkBackupState`.
+
+## Quickstart (browser)
+
+```js
+import init, {
+  PubkyClient,
+  generateNoiseSecretKey,
+  noisePublicKeyFromSecret,
+  publishReceiverMarker,
+  getReceiverMarker,
+  initiateEncryptedLink,
+} from "paykit-wasm";
+
+await init(); // loads paykit_wasm_bg.wasm
+
+const client = new PubkyClient();
+
+// Homeserver session via signer approval (Pubky Ring). The identity secret
+// key never enters this runtime.
+const flow = client.startAuthFlow("/pub/paykit/:rw");
+showQrCode(flow.authorizationUrl());
+const session = await flow.awaitApproval();
+
+// One-time receiver provisioning.
+const noiseSecret = generateNoiseSecretKey(); // store as a secret (IndexedDB)
+await publishReceiverMarker(
+  session, "marketplace/web", noisePublicKeyFromSecret(noiseSecret),
+  /* privatePayments */ true, false, false, false,
+);
+
+// Open a link toward a counterparty.
+const marker = await getReceiverMarker(client, counterpartyPubky, "marketplace/web");
+const handshake = initiateEncryptedLink(
+  session, noiseSecret, counterpartyPubky, marker.noisePublicKey,
+  "marketplace/web", marker.receiverPath, client,
+);
+let result;
+do {
+  result = await handshake.advance();
+  if (result.status === "pending") await sleep(1500);
+} while (result.status !== "complete");
+const link = result.link;
+
+await link.sendPrivateApplicationMessageJson(JSON.stringify({
+  version: 1,
+  kind: "marketplace.chat_message.v0",
+  body: "hello over a Paykit Encrypted Link",
+}));
+const inbound = await link.receivePrivateApplicationMessages();
+// Persist inbound messages BEFORE persisting link.snapshot() — the read
+// checkpoint advances past returned messages.
+```
+
+## Building
+
+```bash
+rustup target add wasm32-unknown-unknown
+wasm-pack build paykit-wasm --target web --out-dir pkg --release
+node paykit-wasm/scripts/smoke.mjs   # requires Node >= 20
+```
+
+No C toolchain is required (see "Packaging fixes" — `ring` is out of the wasm
+graph).
+
+## Packaging fixes applied (the upstreamable diff)
+
+Compiling the unmodified workspace for `wasm32-unknown-unknown` fails on four
+packaging-class issues. None are API-shape problems. This crate fixes them
+additively:
+
+1. **getrandom backends.** `getrandom` 0.3 (used by `pubky-noise`, `snow`,
+   `rand` 0.9) selects its WASM entropy backend at compile time:
+   `paykit-wasm` enables its `wasm_js` feature and `.cargo/config.toml` sets
+   `--cfg getrandom_backend="wasm_js"` for the wasm32 target only.
+   `getrandom` 0.2 (via `pkarr`/`ntimestamp`, `flume`/`nanorand`) needs its
+   `js` feature. Both route entropy to `crypto.getRandomValues`.
+2. **`ring` via a `snow` manifest bug.** `snow` 0.10.0's default `std`
+   feature writes `"ring/std"`, which force-enables the optional `ring`
+   dependency (C code, no stock-Apple-clang wasm32 support) even though the
+   default resolver never calls ring. The correct spelling is the weak
+   dependency `"ring?/std"`. `vendor/snow` is byte-identical to crates.io
+   snow 0.10.0 except that one manifest line, wired via `[patch.crates-io]`.
+   This also removes an unused C crypto build from native targets; behavior
+   is unchanged on all targets.
+3. **`uuid` RNG.** `uuid` (paykit-lib event ids, `v4` feature) requires an
+   explicit randomness source on wasm32; `paykit-wasm` enables its `js`
+   feature.
+4. **`reqwest/stream` on wasm.** `pubky` 0.8.0's event-stream code calls
+   `Response::bytes_stream()`, which reqwest only provides with its `stream`
+   feature — but pubky's own wasm32 dependency declaration omits it (the
+   published `@synonymdev/pubky` package must enable it the same way).
+   `paykit-wasm` enables `reqwest/stream`; cargo feature unification applies
+   it to the whole wasm graph.
+
+## Provenance
+
+| Field | Value |
+| --- | --- |
+| Upstream repository | `https://github.com/pubky/paykit-rs` |
+| Pinned upstream commit | `c8892f638951f033acbcd12804a31667a81ddc14` (master, tag anchor v0.1.0-rc43) |
+| Fork | `https://github.com/BitcoinErrorLog/paykit-rs-official`, branch `feat/wasm-binding` |
+| `pubky` | 0.8.0 (crates.io) |
+| `pubky-noise` | 0.1.0-rc5 (crates.io) |
+| `snow` | 0.10.0 (crates.io source, vendored with one-line manifest fix, see above) |
+| `rustc` | 1.93.1 (01f6ddf75 2026-02-11) |
+| `wasm-pack` | 0.13.1 (bundled binaryen `wasm-opt`) |
+| `wasm-bindgen` | 0.2.115 |
+| Rust target | `wasm32-unknown-unknown` |
+| Node (smoke test) | v22.14.0 |
+| Build command | `wasm-pack build paykit-wasm --target web --out-dir pkg --release` |
+
+### Artifact checksums (SHA-256, this build)
+
+| File | SHA-256 |
+| --- | --- |
+| `pkg/paykit_wasm_bg.wasm` | `58b560c1f3c70fbf2a0438dd87484f1659e19fd9a438741b2682bf5b1fd0cc96` |
+| `pkg/paykit_wasm.js` | `d1b066de78c4e1069a77cffd743d44005fc15931d5b1caa50e5284cb924baf77` |
+| `pkg/paykit_wasm.d.ts` | `a8388c144d16a88963b76563255bae05ced9b43d8f13d1cf736ee15b6de230f9` |
+| `pkg/paykit_wasm_bg.wasm.d.ts` | `b92ceda67ff978dccc29a65aa8a786a341e50d532e2dcc1ec5b4684d172173ae` |
+| `pkg/package.json` | `4ef84587b4aed173786a1beb771b4619c4d296886134d9b5c5847052e24af425` |
+
+Generated `pkg/` size: ~1.5 MB (wasm ~1.45 MB). `wasm-opt` output is not
+guaranteed bit-identical across platforms/toolchains; treat these checksums as
+a record of this build and re-record when the pin or toolchain changes.
+Consumers should vendor `pkg/` verbatim with a `file:` dependency and a
+smoke-test gate, following the Locks SDK precedent.
+
+## Smoke test
+
+`scripts/smoke.mjs` runs against the actual compiled artifact and proves with
+real crypto (no mocks): module instantiation, API surface, key generation
+(entropy through the wasm getrandom backend), a complete Noise XX handshake
+between two in-memory parties with converging link ids, encrypted message
+roundtrips in both directions, nonce sequencing across messages, AEAD
+rejection of tampered ciphertext (without burning the receiving nonce),
+enforcement of the 1000-byte message limit, and `pubkyauth` URL construction.
+
+The in-memory parties use `MemoryNoiseSession`, which drives the exact
+`DataLinkContext` state machine Encrypted Links use, with the caller shuttling
+the same length-prefixed packets that would otherwise sit in homeserver
+outbox slots. What it does not cover: real homeserver transport (paths,
+polling, write-failure recovery), the Private Application Message envelope
+validation, and snapshots — those code paths are compiled and bound but need
+a live homeserver; see "Known limitations".
+
+## Known limitations
+
+- **1000-byte message limit.** `PUBKY_NOISE_MSG_LEN` bounds each Private
+  Application Message (JSON envelope included). Larger payloads and
+  attachments need the receipt-access pattern (encrypted blob at a homeserver
+  path + a small access message), which is not bound here.
+- **Snapshots serialize unencrypted and contain key material.**
+  `pubky-noise` has an open TODO to encrypt persisted snapshots; Paykit
+  documents caller-managed encryption for snapshots and backup state. Treat
+  `snapshot()` bytes as secrets. Do not ship them anywhere unencrypted.
+- **Backup/multi-device key handling is the caller's.** `SdkBackupState` is
+  not bound; what encrypts persisted state (passphrase, recovery-file-derived
+  key, signer-mediated wrap) is an open product decision upstream of this
+  binding. A device without the receiver key and snapshots starts a fresh
+  receiver with no history.
+- **Homeserver flows are compiled but not CI-tested in a browser.** The
+  session/marker/handshake/link surfaces need a live homeserver and a signer;
+  this experiment validates them to the compile + instantiate + crypto level.
+  A two-browser-context e2e against an ephemeral testnet is the natural next
+  step and should live upstream next to pubky-noise's e2e crate.
+- **Concurrency model.** Link and handshake handles reject overlapping
+  operations ("operation in flight") instead of queueing; callers serialize
+  sends/receives per link.
+- **Upstream review.** paykit-rs is pre-1.0 (`rc43`, "WIP - not for
+  production") and claims no independent security review. This binding
+  inherits that status.
+
+## Security notes
+
+- The receiver Noise secret key is generated in the browser and never leaves
+  it. Anyone holding it plus link snapshots can decrypt the conversation.
+- Messages persist as ciphertext on both homeservers under unguessable
+  DH-derived `/pub/` paths; content privacy comes from Noise
+  (`ChaChaPoly_SHA256`), path privacy from the DH derivation.
+- The identity secret key APIs (`signinWithSecret`, `signupWithSecret`) exist
+  for tests against ephemeral testnets. Production browser code must use
+  `startAuthFlow` and never hold the identity secret.
