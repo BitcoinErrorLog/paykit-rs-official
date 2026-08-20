@@ -11,9 +11,17 @@ the keys — without a native app and **without the Pubky identity secret ever
 entering the browser** (sessions come from the Ring-approved `pubkyauth` flow;
 link crypto uses an independent random receiver Noise key).
 
-Status: **experiment / proof of packaging**, built on a fork of
-`pubky/paykit-rs`. See "Provenance" and "Known limitations" before using it
-for anything real.
+Status: **experiment — packaging proven, and the homeserver-backed messaging
+flows are now proven end to end in real browsers** (Chromium, Firefox, WebKit
+via Playwright) against a live Pubky testnet homeserver: browser sessions,
+receiver marker publish/discovery/removal, the Noise XX handshake over
+homeserver outbox transport with converging link ids, Private Application
+Message exchange in both directions with intact payloads, and link
+snapshot/restore across a destroyed-and-recreated browser context. See
+`docs/browser-e2e.md` for the exact environment, assertions, and what remains
+uncovered (notably the `startAuthFlow` signer path and mid-handshake restore).
+Built on a fork of `pubky/paykit-rs`; upstream is pre-1.0 and unreviewed — see
+"Provenance" and "Known limitations" before using it for anything real.
 
 ## What is bound (messaging only)
 
@@ -171,10 +179,21 @@ enforcement of the 1000-byte message limit, and `pubkyauth` URL construction.
 The in-memory parties use `MemoryNoiseSession`, which drives the exact
 `DataLinkContext` state machine Encrypted Links use, with the caller shuttling
 the same length-prefixed packets that would otherwise sit in homeserver
-outbox slots. What it does not cover: real homeserver transport (paths,
-polling, write-failure recovery), the Private Application Message envelope
-validation, and snapshots — those code paths are compiled and bound but need
-a live homeserver; see "Known limitations".
+outbox slots.
+
+## Browser e2e (homeserver flows)
+
+`e2e/run.mjs` is a Playwright-driven end-to-end test that serves `pkg/` to
+real browser engines (Chromium/Firefox/WebKit) and drives two isolated
+browser contexts against a live Pubky testnet homeserver: dev-keypair signup
+sessions, receiver marker publish/discovery/removal, the full Noise XX
+handshake over homeserver outbox slots (asserting both sides derive the same
+link id), Private Application Message exchange in both directions with
+payload-integrity assertions, and snapshot → context destruction →
+`restoreEncryptedLink` in a fresh context that still receives and sends
+(14/14 checks on all three engines). Setup, port-bridging rationale, CORS
+findings, observed reliability, and the honest not-covered list are in
+`docs/browser-e2e.md`.
 
 ## Known limitations
 
@@ -191,11 +210,20 @@ a live homeserver; see "Known limitations".
   key, signer-mediated wrap) is an open product decision upstream of this
   binding. A device without the receiver key and snapshots starts a fresh
   receiver with no history.
-- **Homeserver flows are compiled but not CI-tested in a browser.** The
-  session/marker/handshake/link surfaces need a live homeserver and a signer;
-  this experiment validates them to the compile + instantiate + crypto level.
-  A two-browser-context e2e against an ephemeral testnet is the natural next
-  step and should live upstream next to pubky-noise's e2e crate.
+- **Homeserver flows are proven against a local testnet, not mainnet.** The
+  session/marker/handshake/link/snapshot surfaces passed a two-browser-context
+  e2e against a live pinned testnet homeserver (see `docs/browser-e2e.md`),
+  but public pkarr relays, real DHT latency, HTTPS homeservers, and
+  write-failure recovery branches remain unexercised. The production
+  `startAuthFlow` signer path and `restoreEncryptedLinkHandshake` are also
+  not e2e-covered. The e2e should eventually live upstream next to
+  pubky-noise's e2e crate and run in CI against an ephemeral testnet.
+- **Testnet port topology is fixed on WASM.** `PubkyClient.testnet()`
+  hardcodes `localhost:15411` (pkarr relay) and honors the HTTP_PORT the
+  homeserver record advertises (6286 on the stock testnet). The binding
+  exposes no relay/host overrides, so remapped-port environments (e.g.
+  Docker) need host-side port bridges (the e2e does this) until a
+  configurable constructor is added.
 - **Concurrency model.** Link and handshake handles reject overlapping
   operations ("operation in flight") instead of queueing; callers serialize
   sends/receives per link.
