@@ -189,9 +189,10 @@ browser contexts against a live Pubky testnet homeserver: dev-keypair signup
 sessions, receiver marker publish/discovery/removal, the full Noise XX
 handshake over homeserver outbox slots (asserting both sides derive the same
 link id), Private Application Message exchange in both directions with
-payload-integrity assertions, and snapshot → context destruction →
-`restoreEncryptedLink` in a fresh context that still receives and sends
-(14/14 checks on all three engines). Setup, port-bridging rationale, CORS
+payload-integrity assertions, snapshot → context destruction →
+`restoreEncryptedLink` in a fresh context that still receives and sends, and
+session `exportSession()` → page reload → `restoreSession()` reload survival
+(16/16 checks on all three engines). Setup, port-bridging rationale, CORS
 findings, observed reliability, and the honest not-covered list are in
 `docs/browser-e2e.md`.
 
