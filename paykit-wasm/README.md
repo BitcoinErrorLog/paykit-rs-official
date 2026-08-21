@@ -28,7 +28,7 @@ Built on a fork of `pubky/paykit-rs`; upstream is pre-1.0 and unreviewed — see
 | Area | JS API |
 | --- | --- |
 | Receiver Noise keys | `generateNoiseSecretKey()`, `noisePublicKeyFromSecret()` (mirror `paykit_sdk::ReceiverNoiseSecretKey`) |
-| Client / sessions | `PubkyClient` (`new`, `testnet`), `startAuthFlow(caps)` → `AuthFlowHandle.authorizationUrl()` / `awaitApproval()`; `signinWithSecret` / `signupWithSecret` (dev/test only) |
+| Client / sessions | `PubkyClient` (`new`, `testnet`), `startAuthFlow(caps)` → `AuthFlowHandle.authorizationUrl()` / `awaitApproval()`; `SessionHandle.exportSession()` (secret-free metadata) + `PubkyClient.restoreSession()` (revalidates via the browser's HTTP-only session cookie) for reload survival; `signinWithSecret` / `signupWithSecret` (dev/test only) |
 | Receiver discovery | `publishReceiverMarker`, `getReceiverMarker`, `removeReceiverMarker` |
 | Handshake | `initiateEncryptedLink`, `acceptEncryptedLink`, `LinkHandshakeHandle.advance()/snapshot()/setMaxRecoveryAttempts()`, `restoreEncryptedLinkHandshake` |
 | Messaging | `EncryptedLinkHandle.sendPrivateApplicationMessageJson()` (accepts unknown kinds by contract), `receivePrivateApplicationMessages()`, `snapshot()`, `setMaxSendRetries()`, `close()`, `restoreEncryptedLink`, `clearEncryptedLinkOutbox` |
@@ -154,10 +154,10 @@ additively:
 
 | File | SHA-256 |
 | --- | --- |
-| `pkg/paykit_wasm_bg.wasm` | `a62f2d30b7cf9b7237f2b687a8627a471e4906b1bd5bc80406bf60d3f0fbe545` |
-| `pkg/paykit_wasm.js` | `d1b066de78c4e1069a77cffd743d44005fc15931d5b1caa50e5284cb924baf77` |
-| `pkg/paykit_wasm.d.ts` | `a8388c144d16a88963b76563255bae05ced9b43d8f13d1cf736ee15b6de230f9` |
-| `pkg/paykit_wasm_bg.wasm.d.ts` | `b92ceda67ff978dccc29a65aa8a786a341e50d532e2dcc1ec5b4684d172173ae` |
+| `pkg/paykit_wasm_bg.wasm` | `6a58b5f76270510b092d540a32073d50e4fd5a08c111ce7f79ebe1c2d816ffc1` |
+| `pkg/paykit_wasm.js` | `3e6986e8a049ba768980f3712286c306be2896ca1ef2a98a12813dcb9af80a9f` |
+| `pkg/paykit_wasm.d.ts` | `23f537a22812a2413deb3d0ec0b233fd12ae9846f9ef41b632e94b56b42ef97b` |
+| `pkg/paykit_wasm_bg.wasm.d.ts` | `08941c45f148698bf19860e67b0fb1052cd707ffdfb7e6d60befd8b1f0b3b669` |
 | `pkg/package.json` | `4ef84587b4aed173786a1beb771b4619c4d296886134d9b5c5847052e24af425` |
 
 Generated `pkg/` size: ~1.5 MB (wasm ~1.45 MB). `wasm-opt` output is not

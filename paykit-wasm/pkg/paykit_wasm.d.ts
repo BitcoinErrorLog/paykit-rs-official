@@ -213,6 +213,18 @@ export class PubkyClient {
      */
     constructor();
     /**
+     * Restore a homeserver session from metadata previously produced by
+     * `SessionHandle.exportSession()`, without a new signer approval.
+     *
+     * The export string carries no secrets; the actual credential is the
+     * HTTP-only session cookie in the browser's cookie jar (set by the
+     * homeserver, sent via `credentials: include`). Restoring performs a
+     * `/session` round-trip to revalidate; it rejects if the export is
+     * malformed or the cookie is missing, expired, or revoked. Resolves to
+     * a `SessionHandle`.
+     */
+    restoreSession(exported_session: string): Promise<any>;
+    /**
      * Sign in with a raw identity secret key. Dev/test helper only — in
      * production browser deployments the identity key must stay in the
      * signer (use `startAuthFlow` instead).
@@ -245,6 +257,17 @@ export class SessionHandle {
     private constructor();
     free(): void;
     [Symbol.dispose](): void;
+    /**
+     * Export session metadata for rehydrating via
+     * `PubkyClient.restoreSession()` after a page reload.
+     *
+     * The returned string contains **no secrets** — it is a base64 encoding
+     * of the public `SessionInfo` (pubky, capabilities). The credential
+     * itself is the HTTP-only session cookie the browser holds; the export
+     * only lets a new runtime reconstruct the session handle and revalidate
+     * against the homeserver through that cookie.
+     */
+    exportSession(): string;
     /**
      * The session owner's public key (z-base-32).
      */
@@ -376,8 +399,6 @@ export interface InitOutput {
     readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
     readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
     readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
-    readonly maxNoiseMessageLen: () => number;
-    readonly noiseTagLen: () => number;
     readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
     readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
     readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
@@ -385,13 +406,17 @@ export interface InitOutput {
     readonly authflowhandle_awaitApproval: (a: number) => any;
     readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly pubkyclient_new: () => [number, number, number];
+    readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
     readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
     readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
     readonly pubkyclient_testnet: () => [number, number, number];
     readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
+    readonly sessionhandle_exportSession: (a: number) => [number, number];
     readonly sessionhandle_pubky: (a: number) => [number, number];
+    readonly maxNoiseMessageLen: () => number;
+    readonly noiseTagLen: () => number;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: any) => any;

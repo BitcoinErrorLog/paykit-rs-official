@@ -72,6 +72,26 @@ impl PubkyClient {
         }))
     }
 
+    /// Restore a homeserver session from metadata previously produced by
+    /// `SessionHandle.exportSession()`, without a new signer approval.
+    ///
+    /// The export string carries no secrets; the actual credential is the
+    /// HTTP-only session cookie in the browser's cookie jar (set by the
+    /// homeserver, sent via `credentials: include`). Restoring performs a
+    /// `/session` round-trip to revalidate; it rejects if the export is
+    /// malformed or the cookie is missing, expired, or revoked. Resolves to
+    /// a `SessionHandle`.
+    #[wasm_bindgen(js_name = restoreSession)]
+    pub fn restore_session(&self, exported_session: String) -> js_sys::Promise {
+        let client = self.inner.client().clone();
+        future_to_promise(async move {
+            let session = PubkySession::import(&exported_session, Some(client))
+                .await
+                .map_err(|err| js_err("session restore failed", err))?;
+            Ok(SessionHandle { inner: session }.into())
+        })
+    }
+
     /// Sign up a new account on a homeserver with a raw identity secret key.
     /// Dev/test helper only (used against ephemeral testnets).
     #[wasm_bindgen(js_name = signupWithSecret)]
@@ -139,5 +159,18 @@ impl SessionHandle {
     /// The session owner's public key (z-base-32).
     pub fn pubky(&self) -> String {
         self.inner.info().public_key().z32()
+    }
+
+    /// Export session metadata for rehydrating via
+    /// `PubkyClient.restoreSession()` after a page reload.
+    ///
+    /// The returned string contains **no secrets** — it is a base64 encoding
+    /// of the public `SessionInfo` (pubky, capabilities). The credential
+    /// itself is the HTTP-only session cookie the browser holds; the export
+    /// only lets a new runtime reconstruct the session handle and revalidate
+    /// against the homeserver through that cookie.
+    #[wasm_bindgen(js_name = exportSession)]
+    pub fn export_session(&self) -> String {
+        self.inner.export()
     }
 }

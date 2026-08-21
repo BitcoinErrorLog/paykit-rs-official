@@ -5,6 +5,9 @@
 // (Alice = initiator, Bob = responder) prove:
 //
 //   1. dev-keypair signup sessions from a browser,
+//   1b. session survival across a page reload via exportSession (secret-free
+//       metadata) + the browser's HTTP-only cookie + restoreSession, and a
+//       clean rejection for malformed restore input,
 //   2. receiver marker publish + discovery (both directions),
 //   3. the Noise XX handshake driven over homeserver outbox slots,
 //   4. Private Application Message exchange both directions with
@@ -280,6 +283,51 @@ async function main() {
     assert.match(bobId.pubky, /^[a-z0-9]{52}$/);
     assert.notEqual(aliceId.pubky, bobId.pubky);
     ok(`browser signup sessions established (alice=${aliceId.pubky} bob=${bobId.pubky})`);
+
+    // 1b. Session survives a page reload: exportSession() yields secret-free
+    // metadata; the credential is the browser's HTTP-only session cookie,
+    // which the reload keeps. restoreSession() revalidates against the
+    // homeserver. Everything after this step runs on alice's RESTORED
+    // session, so the rest of the suite proves it is fully functional.
+    const aliceCarryOver = await alice.evaluate(() => {
+      const s = window.state;
+      return {
+        exported: s.session.exportSession(),
+        noiseSecret: Array.from(s.noiseSecret),
+        noisePublic: s.noisePublic,
+      };
+    });
+    assert.ok(aliceCarryOver.exported.length > 0);
+    await alice.reload();
+    await alice.evaluate(() => window.paykitReady);
+    const restoredAlicePubky = await alice.evaluate(
+      async ({ exported, noiseSecret, noisePublic }) => {
+        const p = window.paykit;
+        const s = window.state;
+        s.client = p.PubkyClient.testnet();
+        s.session = await s.client.restoreSession(exported);
+        s.noiseSecret = new Uint8Array(noiseSecret);
+        s.noisePublic = noisePublic;
+        return s.session.pubky();
+      },
+      aliceCarryOver,
+    );
+    assert.equal(restoredAlicePubky, aliceId.pubky);
+    ok("alice session restored after page reload (exported metadata + cookie, no re-approval)");
+
+    const badRestore = await alice.evaluate(async () => {
+      try {
+        await window.state.client.restoreSession("bm90LWEtc2Vzc2lvbg==");
+        return null;
+      } catch (err) {
+        return String(err);
+      }
+    });
+    assert.ok(
+      badRestore !== null && badRestore.includes("session restore failed"),
+      `expected a clear restore rejection, got: ${badRestore}`,
+    );
+    ok("restoring malformed session metadata rejects with a clear error");
 
     // 2. Receiver markers: publish on both sides.
     for (const page of [alice, bob]) {
