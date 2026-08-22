@@ -3231,13 +3231,15 @@ dependencies = [
 
 [[package]]
 name = "paykit-wasm"
-version = "0.1.0-rc43"
+version = "0.1.0-rc44"
 dependencies = [
+ "base64",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
  "js-sys",
  "paykit-lib",
  "pubky",
+ "pubky-common",
  "pubky-noise",
  "reqwest 0.13.2",
  "serde",

@@ -86,6 +86,9 @@ ok("messaging API surface exported", () => {
   assert.equal(typeof EncryptedLinkHandle.prototype.snapshot, "function");
   assert.equal(typeof LinkHandshakeHandle.prototype.advance, "function");
   assert.equal(typeof PubkyClient.prototype.startAuthFlow, "function");
+  assert.equal(typeof PubkyClient.prototype.restoreSession, "function");
+  assert.equal(typeof PubkyClient.prototype.resumeSessionFromCookie, "function");
+  assert.equal(typeof SessionHandle.prototype.exportSession, "function");
 });
 
 // 3. Constants match the pubky-noise wire contract.
@@ -211,6 +214,21 @@ ok("PubkyClient constructs and auth flow yields a pubkyauth URL", () => {
   assert.ok(url.includes("relay="));
   assert.ok(url.includes("secret="));
 });
+
+// 10. Cookie-resume input validation (no network: an invalid pubky is
+// rejected before any request is attempted).
+{
+  const client = new PubkyClient();
+  let rejected = null;
+  try {
+    await client.resumeSessionFromCookie("not-a-valid-pubky");
+  } catch (err) {
+    rejected = String(err);
+  }
+  ok("resumeSessionFromCookie rejects an invalid pubky before any I/O", () => {
+    assert.ok(rejected !== null && /invalid pubky public key/.test(rejected), `got: ${rejected}`);
+  });
+}
 
 alice.close();
 bob.close();

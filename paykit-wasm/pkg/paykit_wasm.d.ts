@@ -225,6 +225,38 @@ export class PubkyClient {
      */
     restoreSession(exported_session: string): Promise<any>;
     /**
+     * Resume a homeserver session purely from the browser's EXISTING
+     * HTTP-only session cookie for `pubky` — no exported metadata and no new
+     * signer approval. This is the zero-approval path for apps whose sign-in
+     * grant already covers the Paykit tree (`/pub/paykit/:rw`): the cookie
+     * set at sign-in is the credential; this call only rebuilds the wasm-side
+     * handle around it.
+     *
+     * How it works: the same `/session` revalidation round-trip
+     * `restoreSession` performs (the browser attaches the cookie via
+     * `credentials: include`), seeded with a synthesized placeholder for the
+     * requested pubky instead of a previously exported string. The
+     * homeserver's response supplies the authoritative `SessionInfo`
+     * (pubky, capabilities), which is verified before a handle is returned.
+     *
+     * Resolves to a `SessionHandle` identical to what `restoreSession` would
+     * produce (including `exportSession()` support). Rejects with a typed
+     * error the caller can branch on via `Error.name`:
+     *
+     * - `"SessionResumeUnauthorized"` — the homeserver holds no valid session
+     *   for this pubky behind the browser's cookies (missing/expired/revoked
+     *   cookie, or a cookie for another account).
+     * - `"SessionResumePubkyMismatch"` — a session validated but belongs to a
+     *   different pubky than requested.
+     * - `"SessionResumeScopeMissing"` — the session is valid but its scope
+     *   does not grant `/pub/paykit/` read+write (a legacy sign-in that
+     *   predates the combined grant); an interactive approval is required.
+     *
+     * Transport failures reject with the plain `cookie resume failed: ...`
+     * shape (retryable; says nothing about the cookie).
+     */
+    resumeSessionFromCookie(pubky: string): Promise<any>;
+    /**
      * Sign in with a raw identity secret key. Dev/test helper only — in
      * production browser deployments the identity key must stay in the
      * signer (use `startAuthFlow` instead).
@@ -386,9 +418,25 @@ export interface InitOutput {
     readonly linkhandshakehandle_snapshot: (a: number) => [number, number, number, number];
     readonly restoreEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly restoreEncryptedLinkHandshake: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly generateNoiseSecretKey: () => [number, number];
-    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
+    readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
+    readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
+    readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
+    readonly authflowhandle_authorizationUrl: (a: number) => [number, number];
+    readonly authflowhandle_awaitApproval: (a: number) => any;
+    readonly pubkyclient_new: () => [number, number, number];
+    readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
+    readonly pubkyclient_resumeSessionFromCookie: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_testnet: () => [number, number, number];
+    readonly sessionhandle_exportSession: (a: number) => [number, number];
+    readonly sessionhandle_pubky: (a: number) => [number, number];
+    readonly maxNoiseMessageLen: () => number;
+    readonly noiseTagLen: () => number;
     readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
+    readonly generateNoiseSecretKey: () => [number, number];
+    readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly memorynoisesession_close: (a: number) => void;
     readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
     readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
@@ -399,24 +447,9 @@ export interface InitOutput {
     readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
     readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
     readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
-    readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
-    readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
-    readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
-    readonly authflowhandle_authorizationUrl: (a: number) => [number, number];
-    readonly authflowhandle_awaitApproval: (a: number) => any;
-    readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly pubkyclient_new: () => [number, number, number];
-    readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
-    readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_testnet: () => [number, number, number];
+    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
     readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
-    readonly sessionhandle_exportSession: (a: number) => [number, number];
-    readonly sessionhandle_pubky: (a: number) => [number, number];
-    readonly maxNoiseMessageLen: () => number;
-    readonly noiseTagLen: () => number;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: any) => any;

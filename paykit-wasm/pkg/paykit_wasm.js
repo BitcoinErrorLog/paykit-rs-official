@@ -577,6 +577,48 @@ export class PubkyClient {
         return ret;
     }
     /**
+     * Resume a homeserver session purely from the browser's EXISTING
+     * HTTP-only session cookie for `pubky` — no exported metadata and no new
+     * signer approval. This is the zero-approval path for apps whose sign-in
+     * grant already covers the Paykit tree (`/pub/paykit/:rw`): the cookie
+     * set at sign-in is the credential; this call only rebuilds the wasm-side
+     * handle around it.
+     *
+     * How it works: the same `/session` revalidation round-trip
+     * `restoreSession` performs (the browser attaches the cookie via
+     * `credentials: include`), seeded with a synthesized placeholder for the
+     * requested pubky instead of a previously exported string. The
+     * homeserver's response supplies the authoritative `SessionInfo`
+     * (pubky, capabilities), which is verified before a handle is returned.
+     *
+     * Resolves to a `SessionHandle` identical to what `restoreSession` would
+     * produce (including `exportSession()` support). Rejects with a typed
+     * error the caller can branch on via `Error.name`:
+     *
+     * - `"SessionResumeUnauthorized"` — the homeserver holds no valid session
+     *   for this pubky behind the browser's cookies (missing/expired/revoked
+     *   cookie, or a cookie for another account).
+     * - `"SessionResumePubkyMismatch"` — a session validated but belongs to a
+     *   different pubky than requested.
+     * - `"SessionResumeScopeMissing"` — the session is valid but its scope
+     *   does not grant `/pub/paykit/` read+write (a legacy sign-in that
+     *   predates the combined grant); an interactive approval is required.
+     *
+     * Transport failures reject with the plain `cookie resume failed: ...`
+     * shape (retryable; says nothing about the cookie).
+     * @param {string} pubky
+     * @returns {Promise<any>}
+     */
+    resumeSessionFromCookie(pubky) {
+        const ptr0 = passStringToWasm0(pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.pubkyclient_resumeSessionFromCookie(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Sign in with a raw identity secret key. Dev/test helper only — in
      * production browser deployments the identity key must stay in the
      * signer (use `startAuthFlow` instead).
@@ -1308,6 +1350,9 @@ function __wbg_get_imports() {
         __wbg_set_mode_7b856ab49b64c0db: function(arg0, arg1) {
             arg0.mode = __wbindgen_enum_RequestMode[arg1];
         },
+        __wbg_set_name_3a8e5679e3158633: function(arg0, arg1, arg2) {
+            arg0.name = getStringFromWasm0(arg1, arg2);
+        },
         __wbg_set_signal_cd4528432ab8fe0b: function(arg0, arg1) {
             arg0.signal = arg1;
         },
@@ -1371,12 +1416,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1164, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1161, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1001, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 998, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1);
             return ret;
         },

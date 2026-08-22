@@ -28,7 +28,7 @@ Built on a fork of `pubky/paykit-rs`; upstream is pre-1.0 and unreviewed — see
 | Area | JS API |
 | --- | --- |
 | Receiver Noise keys | `generateNoiseSecretKey()`, `noisePublicKeyFromSecret()` (mirror `paykit_sdk::ReceiverNoiseSecretKey`) |
-| Client / sessions | `PubkyClient` (`new`, `testnet`), `startAuthFlow(caps)` → `AuthFlowHandle.authorizationUrl()` / `awaitApproval()`; `SessionHandle.exportSession()` (secret-free metadata) + `PubkyClient.restoreSession()` (revalidates via the browser's HTTP-only session cookie) for reload survival; `signinWithSecret` / `signupWithSecret` (dev/test only) |
+| Client / sessions | `PubkyClient` (`new`, `testnet`), `startAuthFlow(caps)` → `AuthFlowHandle.authorizationUrl()` / `awaitApproval()`; `SessionHandle.exportSession()` (secret-free metadata) + `PubkyClient.restoreSession()` (revalidates via the browser's HTTP-only session cookie) for reload survival; `PubkyClient.resumeSessionFromCookie(pubky)` — zero-approval session resume purely from the browser's existing cookie when the sign-in grant already covers `/pub/paykit/:rw`, with typed rejections (`SessionResumeUnauthorized` / `SessionResumePubkyMismatch` / `SessionResumeScopeMissing` via `Error.name`); `signinWithSecret` / `signupWithSecret` (dev/test only) |
 | Receiver discovery | `publishReceiverMarker`, `getReceiverMarker`, `removeReceiverMarker` |
 | Handshake | `initiateEncryptedLink`, `acceptEncryptedLink`, `LinkHandshakeHandle.advance()/snapshot()/setMaxRecoveryAttempts()`, `restoreEncryptedLinkHandshake` |
 | Messaging | `EncryptedLinkHandle.sendPrivateApplicationMessageJson()` (accepts unknown kinds by contract), `receivePrivateApplicationMessages()`, `snapshot()`, `setMaxSendRetries()`, `close()`, `restoreEncryptedLink`, `clearEncryptedLinkOutbox` |
@@ -154,11 +154,11 @@ additively:
 
 | File | SHA-256 |
 | --- | --- |
-| `pkg/paykit_wasm_bg.wasm` | `6a58b5f76270510b092d540a32073d50e4fd5a08c111ce7f79ebe1c2d816ffc1` |
-| `pkg/paykit_wasm.js` | `3e6986e8a049ba768980f3712286c306be2896ca1ef2a98a12813dcb9af80a9f` |
-| `pkg/paykit_wasm.d.ts` | `23f537a22812a2413deb3d0ec0b233fd12ae9846f9ef41b632e94b56b42ef97b` |
-| `pkg/paykit_wasm_bg.wasm.d.ts` | `08941c45f148698bf19860e67b0fb1052cd707ffdfb7e6d60befd8b1f0b3b669` |
-| `pkg/package.json` | `4ef84587b4aed173786a1beb771b4619c4d296886134d9b5c5847052e24af425` |
+| `pkg/paykit_wasm_bg.wasm` | `cd781e364126312453b014ba3ceb74055a0c3f8b26c70b41e4827a0991ba4096` |
+| `pkg/paykit_wasm.js` | `ee73963f128b8b2667391721b3ed3a025527d4b89ade26cd1522c47cf9746587` |
+| `pkg/paykit_wasm.d.ts` | `c88bda8479479e6dd548542a3b380b7224dcab28cca572936d69cf8013930887` |
+| `pkg/paykit_wasm_bg.wasm.d.ts` | `b390e8c1ebd8ec5ed148bd51aa8891ca7b6688d35fe744b90bd4615cf86cf5bb` |
+| `pkg/package.json` | `374e0391c23bfa4e56d0a2819c6823bc7a1c83a7ca79c9032a5e4cadd40c261a` |
 
 Generated `pkg/` size: ~1.5 MB (wasm ~1.45 MB). `wasm-opt` output is not
 guaranteed bit-identical across platforms/toolchains; treat these checksums as
@@ -174,7 +174,9 @@ real crypto (no mocks): module instantiation, API surface, key generation
 between two in-memory parties with converging link ids, encrypted message
 roundtrips in both directions, nonce sequencing across messages, AEAD
 rejection of tampered ciphertext (without burning the receiving nonce),
-enforcement of the 1000-byte message limit, and `pubkyauth` URL construction.
+enforcement of the 1000-byte message limit, `pubkyauth` URL construction, and
+`resumeSessionFromCookie` input validation (an invalid pubky rejects before
+any I/O).
 
 The in-memory parties use `MemoryNoiseSession`, which drives the exact
 `DataLinkContext` state machine Encrypted Links use, with the caller shuttling
@@ -190,9 +192,12 @@ sessions, receiver marker publish/discovery/removal, the full Noise XX
 handshake over homeserver outbox slots (asserting both sides derive the same
 link id), Private Application Message exchange in both directions with
 payload-integrity assertions, snapshot → context destruction →
-`restoreEncryptedLink` in a fresh context that still receives and sends, and
-session `exportSession()` → page reload → `restoreSession()` reload survival
-(16/16 checks on all three engines). Setup, port-bridging rationale, CORS
+`restoreEncryptedLink` in a fresh context that still receives and sends,
+session `exportSession()` → page reload → `restoreSession()` reload survival,
+and cookie-ONLY resume — exported metadata discarded across a second reload,
+`resumeSessionFromCookie()` rebuilding the session from the browser cookie
+alone, with a typed rejection for a cookieless pubky
+(19/19 checks on all three engines). Setup, port-bridging rationale, CORS
 findings, observed reliability, and the honest not-covered list are in
 `docs/browser-e2e.md`.
 

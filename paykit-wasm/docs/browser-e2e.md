@@ -10,7 +10,7 @@ The e2e drives the actual `wasm-pack --target web` artifact (`paykit-wasm/pkg/`)
 in real browser engines — **Chromium 151.0.7922.34, Firefox 153.0, and
 WebKit 26.5** (Playwright 1.62.1) — against a **live Pubky testnet homeserver**
 (pubky-core `f68014c1`, running in Docker). Two isolated browser contexts play
-Alice (initiator) and Bob (responder). All 16 checks passed on all three
+Alice (initiator) and Bob (responder). All 19 checks passed on all three
 engines:
 
 1. **Preflight** — the pkarr relay serves the homeserver's record; the
@@ -31,39 +31,54 @@ engines:
 4. **Restore input validation** — `restoreSession()` with malformed input
    rejects with a clear `session restore failed` error instead of yielding
    a broken handle.
-5. **Marker publish** — both contexts publish receiver markers at
+5. **Cookie-ONLY resume** — Alice's page is reloaded a SECOND time and the
+   exported metadata is deliberately DISCARDED: `resumeSessionFromCookie()`
+   rebuilds a working session handle purely from the browser's HTTP-only
+   session cookie (no exported string, no re-approval). Every subsequent
+   Alice check — marker publish, handshake, message exchange — runs on this
+   COOKIE-RESUMED session, proving it is fully functional.
+6. **Cookie-resume export round-trip** — the cookie-resumed handle's
+   `exportSession()` string is accepted by `restoreSession()` like any
+   approval-path export (same `SessionInfo` wire shape).
+7. **Typed cookie-resume rejection** — resuming for a pubky the browser
+   holds no cookie for (Bob's pubky from Alice's context) rejects with
+   `Error.name === "SessionResumeUnauthorized"` — a machine-readable
+   failure, not a broken handle or an opaque error. (The homeserver answers
+   401 for this case; a 404 maps to the same name.)
+8. **Marker publish** — both contexts publish receiver markers at
    `marketplace/wallet` with `privatePayments = true`.
-6. **Marker discovery** — each side fetches the *other* identity's marker
+9. **Marker discovery** — each side fetches the *other* identity's marker
    through pkarr resolution + public storage read; noise public keys,
    receiver paths, and capability flags round-trip exactly.
-7. **Clean None** — reading an unpublished marker path
-   (`otherapp/wallet`) resolves to `undefined`, not an error.
-8. **Handshake over homeserver transport** — `initiateEncryptedLink` /
-   `acceptEncryptedLink` driven by alternating `advance()` calls complete the
-   Noise XX handshake through homeserver outbox slots in 3 advance rounds
-   per side.
-9. **Link id convergence** — both sides' link snapshots contain the same
-   32-byte link id (extracted from the snapshot wire format: the JSON
-   `SnapshotWire.state` field is `PubkyNoiseSessionState`'s fixed binary
-   layout, byte 108 = has_link_id, bytes 109..141 = link id). Identical ids
-   prove the handshake transcripts converged.
-10. **Alice → Bob message** — `sendPrivateApplicationMessageJson` with a
+10. **Clean None** — reading an unpublished marker path
+    (`otherapp/wallet`) resolves to `undefined`, not an error.
+11. **Handshake over homeserver transport** — `initiateEncryptedLink` /
+    `acceptEncryptedLink` driven by alternating `advance()` calls complete the
+    Noise XX handshake through homeserver outbox slots in 3 advance rounds
+    per side.
+12. **Link id convergence** — both sides' link snapshots contain the same
+    32-byte link id (extracted from the snapshot wire format: the JSON
+    `SnapshotWire.state` field is `PubkyNoiseSessionState`'s fixed binary
+    layout, byte 108 = has_link_id, bytes 109..141 = link id). Identical ids
+    prove the handshake transcripts converged.
+13. **Alice → Bob message** — `sendPrivateApplicationMessageJson` with a
     marketplace-shaped kind (`marketplace.chat_message.v0`);
     `receivePrivateApplicationMessages` polling delivers it with the payload
     byte-for-byte intact (`JSON.parse(rawJson)` deep-equals the sent object;
-    `version`/`kind` envelope fields decoded).
-11. **Bob → Alice message** — same, opposite direction.
-12. **Marker removal** — `removeReceiverMarker` on Bob's session; Alice's
+    `version`/`kind` envelope fields decoded). Alice sends on the
+    cookie-resumed session.
+14. **Bob → Alice message** — same, opposite direction.
+15. **Marker removal** — `removeReceiverMarker` on Bob's session; Alice's
     context then reads `undefined`.
-13. **Snapshot** — Bob serializes the established link and his browser
+16. **Snapshot** — Bob serializes the established link and his browser
     context is destroyed.
-14. **Restore** — a brand-new context signs back in with `signinWithSecret`
+17. **Restore** — a brand-new context signs back in with `signinWithSecret`
     (homeserver resolved from the identity's pkarr record) and
     `restoreEncryptedLink` rebuilds the link from snapshot bytes.
-15. **Multi-device survival (receive)** — the restored context receives a
+18. **Multi-device survival (receive)** — the restored context receives a
     NEW message Alice sent after the original context was destroyed
     (`marketplace.order_update.v0`), payload intact.
-16. **Multi-device survival (send)** — the restored context sends a message
+19. **Multi-device survival (send)** — the restored context sends a message
     Alice receives, proving the outbound nonce/slot counters also survived
     the snapshot/restore cycle.
 
@@ -78,8 +93,10 @@ at session establishment and passed on immediate re-run. Firefox and WebKit
 passed on their first attempts. After adding the session reload-survival
 checks (16-check suite): the first Chromium run hit the same transient
 pkarr-resolution failure — this time at the fresh-context `signinWithSecret`
-in check 14, with the new checks 3/4 already passing — and the immediate
-re-run plus first Firefox and WebKit runs passed 16/16. Treat isolated
+in the restore check, with the new reload-survival checks already passing —
+and the immediate re-run plus first Firefox and WebKit runs passed 16/16.
+After adding the cookie-resume checks (19-check suite): Chromium, Firefox,
+and WebKit each passed 19/19 on their first attempts. Treat isolated
 signin/signup-time pkarr failures as environmental (relay/DHT publish
 timing), not binding regressions.
 
@@ -160,7 +177,7 @@ E2E_BROWSER=webkit  node run.mjs
 E2E_HEADED=1 node run.mjs              # watch it
 ```
 
-The script exits 0 with `16/16 browser e2e checks passed` on success and
+The script exits 0 with `19/19 browser e2e checks passed` on success and
 exits 1 with the failing assertion otherwise.
 
 ## What this e2e does NOT cover
@@ -169,6 +186,12 @@ exits 1 with the failing assertion otherwise.
   requires a signer (Pubky Ring) approving a `pubkyauth:` URL. Only URL
   construction is covered (Node smoke test). The e2e uses the explicitly
   dev/test-only keypair helpers.
+- **`SessionResumeScopeMissing`** — the typed rejection for a valid session
+  whose grant lacks `/pub/paykit/` read+write is not e2e-exercised: the
+  dev/test signup helpers produce root-scoped sessions, and minting a
+  narrower grant needs a signer. The scope matcher itself is covered by
+  native `cargo test` cases in `src/session.rs` (combined grant, legacy
+  grants without paykit, read-only, non-directory and sibling scopes).
 - **`restoreEncryptedLinkHandshake`** — mid-handshake snapshot/restore is
   compiled and bound but not e2e-exercised (the e2e restores an
   *established* link).

@@ -5,7 +5,7 @@
     "johnc@synonym.to"
   ],
   "description": "Browser WASM binding for the Paykit Encrypted Link messaging surface",
-  "version": "0.1.0-rc43",
+  "version": "0.1.0-rc44",
   "license": "MIT",
   "repository": {
     "type": "git",

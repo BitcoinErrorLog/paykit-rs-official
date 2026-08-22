@@ -8,6 +8,10 @@
 //   1b. session survival across a page reload via exportSession (secret-free
 //       metadata) + the browser's HTTP-only cookie + restoreSession, and a
 //       clean rejection for malformed restore input,
+//   1c. cookie-ONLY resume: the exported metadata is DISCARDED across a
+//       second reload and resumeSessionFromCookie rebuilds the session from
+//       the browser cookie alone (plus exportSession round-trip on the
+//       resumed handle and a typed rejection for a cookieless pubky),
 //   2. receiver marker publish + discovery (both directions),
 //   3. the Noise XX handshake driven over homeserver outbox slots,
 //   4. Private Application Message exchange both directions with
@@ -328,6 +332,66 @@ async function main() {
       `expected a clear restore rejection, got: ${badRestore}`,
     );
     ok("restoring malformed session metadata rejects with a clear error");
+
+    // 1c. Cookie-ONLY resume: reload alice again and DISCARD the exported
+    // metadata entirely — `resumeSessionFromCookie` rebuilds the session
+    // handle purely from the browser's HTTP-only cookie (the credential the
+    // homeserver set at signup). Every subsequent alice check — marker
+    // publish, handshake, message exchange — runs on THIS cookie-resumed
+    // session, proving it is fully functional, not merely present.
+    await alice.reload();
+    await alice.evaluate(() => window.paykitReady);
+    const cookieResumed = await alice.evaluate(
+      async ({ pubky, noiseSecret, noisePublic }) => {
+        const p = window.paykit;
+        const s = window.state;
+        s.client = p.PubkyClient.testnet();
+        // No restoreSession input exists here: the exported string was
+        // deliberately not carried across this reload.
+        s.session = await s.client.resumeSessionFromCookie(pubky);
+        s.noiseSecret = new Uint8Array(noiseSecret);
+        s.noisePublic = noisePublic;
+        return { pubky: s.session.pubky(), exported: s.session.exportSession() };
+      },
+      {
+        pubky: aliceId.pubky,
+        noiseSecret: aliceCarryOver.noiseSecret,
+        noisePublic: aliceCarryOver.noisePublic,
+      },
+    );
+    assert.equal(cookieResumed.pubky, aliceId.pubky);
+    assert.ok(cookieResumed.exported.length > 0);
+    ok("alice session resumed PURELY from the cookie (no exported metadata, no re-approval)");
+
+    // The cookie-resumed handle joins the exportSession round-trip: its
+    // export string is accepted by restoreSession like any approval-path
+    // export would be.
+    const roundTrippedPubky = await alice.evaluate(async (exported) => {
+      const restored = await window.state.client.restoreSession(exported);
+      const restoredPubky = restored.pubky();
+      restored.free();
+      return restoredPubky;
+    }, cookieResumed.exported);
+    assert.equal(roundTrippedPubky, aliceId.pubky);
+    ok("cookie-resumed session's exportSession round-trips through restoreSession");
+
+    // Typed failure: alice's browser context holds no cookie for bob's
+    // pubky, so resuming for it must reject with a machine-readable error
+    // name (not a working handle, not an opaque failure).
+    const wrongPubkyResume = await alice.evaluate(async (otherPubky) => {
+      try {
+        const handle = await window.state.client.resumeSessionFromCookie(otherPubky);
+        return { resolvedPubky: handle.pubky() };
+      } catch (err) {
+        return { name: err?.name ?? null, message: String(err) };
+      }
+    }, bobId.pubky);
+    assert.equal(
+      wrongPubkyResume.name,
+      "SessionResumeUnauthorized",
+      `expected a typed SessionResumeUnauthorized rejection, got: ${JSON.stringify(wrongPubkyResume)}`,
+    );
+    ok("cookie-resume for a pubky the browser holds no cookie for rejects with SessionResumeUnauthorized");
 
     // 2. Receiver markers: publish on both sides.
     for (const page of [alice, bob]) {
