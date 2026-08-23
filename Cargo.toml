@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["paykit-lib", "paykit-ffi", "paykit-sdk", "paykit-wasm"]
+
+[patch.crates-io]
+rustls-platform-verifier-android = { path = "vendor/rustls-platform-verifier-android" }
+# snow 0.10.0 with a one-line manifest fix ("ring/std" -> "ring?/std") so the
+# unused optional ring dependency is not force-enabled by the default `std`
+# feature. Required to build paykit-wasm for wasm32-unknown-unknown without a
+# wasm-capable C toolchain. Source is byte-identical to crates.io snow 0.10.0
+# except Cargo.toml. See paykit-wasm/README.md.
+snow = { path = "vendor/snow" }
