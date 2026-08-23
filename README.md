@@ -2,6 +2,34 @@
 
 > WIP - not for production.
 
+## This fork: Pubky Marketplace project
+
+This is `BitcoinErrorLog/paykit-rs-official` (branch `feat/wasm-binding`), a
+fork of the official [`pubky/paykit-rs`](https://github.com/pubky/paykit-rs)
+(pinned upstream base `c8892f6`) built for the Pubky Marketplace project.
+It is NOT the deprecated legacy `BitcoinErrorLog/paykit-rs`, which shares no
+history with the official library. No upstream PRs are filed while the
+protocol shape settles.
+
+**Added over upstream:**
+
+- An experiment-grade **browser WASM binding** of the encrypted-link
+  messaging surface (Noise `XX_25519_ChaChaPoly_SHA256`), vendored into the
+  marketplace client (`vendor/paykit-wasm`, provenance and checksums
+  recorded there) and powering its end-to-end-encrypted listing chat and
+  general DMs — no service operator can read message bodies.
+- **Reload-survival sessions in browsers**: session export/restore plus
+  `resumeSessionFromCookie` (zero-approval resume from the browser's
+  HTTP-only homeserver cookie), so an encrypted-messaging session survives
+  reloads, new tabs, and browser restarts without a fresh signer approval.
+- A three-engine browser e2e suite (chromium/firefox/webkit, 16/16
+  including the reload-survival checks) exercising the binding against a
+  live homeserver.
+
+The marketplace client consumes this fork as a built artifact; the pinned
+commit and build steps live in the client's
+`docs/ecommerce/paykit-wasm-provenance.md`.
+
 [![CI](https://github.com/pubky/paykit-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/pubky/paykit-rs/actions/workflows/ci.yml)
 [![Coverage](https://raw.githubusercontent.com/pubky/paykit-rs/badges/coverage.svg)](https://github.com/pubky/paykit-rs/actions/workflows/ci.yml)
 
