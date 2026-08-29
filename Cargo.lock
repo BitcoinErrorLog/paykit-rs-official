@@ -3171,6 +3171,7 @@ dependencies = [
  "paykit-sdk",
  "postcard",
  "pubky",
+ "pubky-testnet",
  "rustls-platform-verifier",
  "serde",
  "serde_json",

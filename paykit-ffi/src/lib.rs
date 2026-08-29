@@ -1,5 +1,6 @@
 #![doc = "UniFFI bindings for Paykit SDK."]
 
+mod chat_links;
 mod config;
 mod conversions_common;
 mod errors;
@@ -19,6 +20,7 @@ mod storage;
 #[cfg(test)]
 mod tests;
 
+pub use chat_links::*;
 pub use config::*;
 pub use errors::PaykitFfiError;
 pub use json::*;
