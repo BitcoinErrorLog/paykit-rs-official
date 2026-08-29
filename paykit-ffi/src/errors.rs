@@ -207,5 +207,35 @@ pub(crate) fn validation_error(reason: impl Into<String>) -> PaykitFfiError {
     }
 }
 
+pub(crate) fn transport_error(
+    code: impl Into<String>,
+    context: impl Into<String>,
+) -> PaykitFfiError {
+    PaykitFfiError::Transport {
+        code: code.into(),
+        context: context.into(),
+    }
+}
+
+pub(crate) fn protocol_error(
+    code: impl Into<String>,
+    context: impl Into<String>,
+) -> PaykitFfiError {
+    PaykitFfiError::Protocol {
+        code: code.into(),
+        context: context.into(),
+    }
+}
+
+/// Handle was consumed by a previous complete, failed, or close operation.
+pub(crate) fn consumed_error(context: impl Into<String>) -> PaykitFfiError {
+    protocol_error("consumed", context)
+}
+
+/// Another operation is already running on this handle.
+pub(crate) fn in_flight_error(context: impl Into<String>) -> PaykitFfiError {
+    protocol_error("in_flight", context)
+}
+
 #[cfg(test)]
 mod tests;
