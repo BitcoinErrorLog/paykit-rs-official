@@ -1495,6 +1495,82 @@ internal typealias UniffiVTableCallbackInterfaceFfiSdkStateBlobStoreUniffiByValu
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @Synchronized
 private fun findLibraryName(componentName: String): String {
     val libOverride = System.getProperty("uniffi.component.$componentName.libraryOverride")
@@ -1549,6 +1625,9 @@ internal object IntegrityCheckingUniffiLib : Library {
         if (uniffi_paykit_checksum_func_generate_receipt_id() != 34487.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
+        if (uniffi_paykit_checksum_func_generate_receiver_noise_secret_key_hex() != 3743.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
         if (uniffi_paykit_checksum_func_normalize_pubky_public_key() != 1980.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
@@ -1570,6 +1649,9 @@ internal object IntegrityCheckingUniffiLib : Library {
         if (uniffi_paykit_checksum_func_raw_pubky_public_key() != 57096.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
+        if (uniffi_paykit_checksum_func_receiver_noise_public_key_from_secret_hex() != 895.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
         if (uniffi_paykit_checksum_func_redacted_pubky_public_key() != 54739.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
@@ -1577,6 +1659,93 @@ internal object IntegrityCheckingUniffiLib : Library {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
         if (uniffi_paykit_checksum_func_resolve_pubky_url() != 12085.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatauthflow_authorization_url() != 31063.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatauthflow_await_approval() != 58212.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatclient_get_receiver_marker() != 64649.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatclient_restore_session() != 26393.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatclient_signin_with_secret() != 33367.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatclient_signup_with_secret() != 32090.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatclient_start_auth_flow() != 34303.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_close() != 57162.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_local_receiver_path() != 58751.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_receive_private_application_messages() != 29947.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_recipient() != 44380.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_remote_noise_public_key() != 31948.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_remote_receiver_path() != 55929.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_send_private_application_message_json() != 53851.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_set_max_send_retries() != 3975.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlink_snapshot() != 56956.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlinkhandshake_advance() != 11441.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlinkhandshake_set_max_recovery_attempts() != 7054.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatlinkhandshake_snapshot() != 54253.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_accept_encrypted_link() != 40851.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_clear_encrypted_link_outbox() != 36923.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_export_session() != 46033.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_initiate_encrypted_link() != 25587.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_probe_inbound_encrypted_link() != 9295.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_pubky() != 10186.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_publish_receiver_marker() != 32228.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_remove_receiver_marker() != 37083.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_restore_encrypted_link() != 9811.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_method_ffichatsession_restore_encrypted_link_handshake() != 33439.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
         if (uniffi_paykit_checksum_method_ffipaykitsdk_accept_link_with_peer() != 24950.toShort()) {
@@ -1954,6 +2123,12 @@ internal object IntegrityCheckingUniffiLib : Library {
         if (uniffi_paykit_checksum_method_ffisdkstateblobstore_save_state_blob_atomically() != 4172.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
+        if (uniffi_paykit_checksum_constructor_ffichatclient_new() != 62539.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_constructor_ffichatclient_with_pubky_client_config() != 22326.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
         if (uniffi_paykit_checksum_constructor_ffipaykitsdk_new() != 15447.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
@@ -2021,6 +2196,9 @@ internal object IntegrityCheckingUniffiLib : Library {
     external fun uniffi_paykit_checksum_func_generate_receipt_id(
     ): Short
     @JvmStatic
+    external fun uniffi_paykit_checksum_func_generate_receiver_noise_secret_key_hex(
+    ): Short
+    @JvmStatic
     external fun uniffi_paykit_checksum_func_normalize_pubky_public_key(
     ): Short
     @JvmStatic
@@ -2042,6 +2220,9 @@ internal object IntegrityCheckingUniffiLib : Library {
     external fun uniffi_paykit_checksum_func_raw_pubky_public_key(
     ): Short
     @JvmStatic
+    external fun uniffi_paykit_checksum_func_receiver_noise_public_key_from_secret_hex(
+    ): Short
+    @JvmStatic
     external fun uniffi_paykit_checksum_func_redacted_pubky_public_key(
     ): Short
     @JvmStatic
@@ -2049,6 +2230,93 @@ internal object IntegrityCheckingUniffiLib : Library {
     ): Short
     @JvmStatic
     external fun uniffi_paykit_checksum_func_resolve_pubky_url(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatauthflow_authorization_url(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatauthflow_await_approval(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatclient_get_receiver_marker(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatclient_restore_session(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatclient_signin_with_secret(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatclient_signup_with_secret(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatclient_start_auth_flow(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_close(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_local_receiver_path(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_receive_private_application_messages(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_recipient(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_remote_noise_public_key(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_remote_receiver_path(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_send_private_application_message_json(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_set_max_send_retries(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlink_snapshot(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlinkhandshake_advance(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlinkhandshake_set_max_recovery_attempts(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatlinkhandshake_snapshot(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_accept_encrypted_link(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_clear_encrypted_link_outbox(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_export_session(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_initiate_encrypted_link(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_probe_inbound_encrypted_link(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_pubky(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_publish_receiver_marker(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_remove_receiver_marker(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_restore_encrypted_link(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_method_ffichatsession_restore_encrypted_link_handshake(
     ): Short
     @JvmStatic
     external fun uniffi_paykit_checksum_method_ffipaykitsdk_accept_link_with_peer(
@@ -2426,6 +2694,12 @@ internal object IntegrityCheckingUniffiLib : Library {
     external fun uniffi_paykit_checksum_method_ffisdkstateblobstore_save_state_blob_atomically(
     ): Short
     @JvmStatic
+    external fun uniffi_paykit_checksum_constructor_ffichatclient_new(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_constructor_ffichatclient_with_pubky_client_config(
+    ): Short
+    @JvmStatic
     external fun uniffi_paykit_checksum_constructor_ffipaykitsdk_new(
     ): Short
     @JvmStatic
@@ -2495,6 +2769,236 @@ internal object UniffiLib : Library {
     internal val CLEANER: UniffiCleaner by lazy {
         UniffiCleaner.create()
     }
+    @JvmStatic
+    external fun uniffi_paykit_fn_clone_ffichatauthflow(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_free_ffichatauthflow(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Unit
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatauthflow_authorization_url(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatauthflow_await_approval(
+        `ptr`: Pointer?,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_clone_ffichatclient(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_free_ffichatclient(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Unit
+    @JvmStatic
+    external fun uniffi_paykit_fn_constructor_ffichatclient_new(
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_constructor_ffichatclient_with_pubky_client_config(
+        `pubkyClient`: RustBufferByValue,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatclient_get_receiver_marker(
+        `ptr`: Pointer?,
+        `ownerPublicKey`: RustBufferByValue,
+        `receiverPath`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatclient_restore_session(
+        `ptr`: Pointer?,
+        `exportedSession`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatclient_signin_with_secret(
+        `ptr`: Pointer?,
+        `identitySecretKeyHex`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatclient_signup_with_secret(
+        `ptr`: Pointer?,
+        `identitySecretKeyHex`: RustBufferByValue,
+        `homeserverPublicKey`: RustBufferByValue,
+        `signupToken`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatclient_start_auth_flow(
+        `ptr`: Pointer?,
+        `capabilities`: RustBufferByValue,
+        `relayUrl`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_clone_ffichatlink(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_free_ffichatlink(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Unit
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_close(
+        `ptr`: Pointer?,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_local_receiver_path(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_receive_private_application_messages(
+        `ptr`: Pointer?,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_recipient(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_remote_noise_public_key(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_remote_receiver_path(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_send_private_application_message_json(
+        `ptr`: Pointer?,
+        `rawJson`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_set_max_send_retries(
+        `ptr`: Pointer?,
+        `max`: Int,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlink_snapshot(
+        `ptr`: Pointer?,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_clone_ffichatlinkhandshake(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_free_ffichatlinkhandshake(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Unit
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlinkhandshake_advance(
+        `ptr`: Pointer?,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlinkhandshake_set_max_recovery_attempts(
+        `ptr`: Pointer?,
+        `max`: Int,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatlinkhandshake_snapshot(
+        `ptr`: Pointer?,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_clone_ffichatsession(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_free_ffichatsession(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Unit
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_accept_encrypted_link(
+        `ptr`: Pointer?,
+        `receiverNoiseSecretKeyHex`: RustBufferByValue,
+        `senderPublicKey`: RustBufferByValue,
+        `senderNoisePublicKey`: RustBufferByValue,
+        `localReceiverPath`: RustBufferByValue,
+        `remoteReceiverPath`: RustBufferByValue,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_clear_encrypted_link_outbox(
+        `ptr`: Pointer?,
+        `localNoiseSecretKeyHex`: RustBufferByValue,
+        `remotePublicKey`: RustBufferByValue,
+        `remoteNoisePublicKey`: RustBufferByValue,
+        `localReceiverPath`: RustBufferByValue,
+        `remoteReceiverPath`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_export_session(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_initiate_encrypted_link(
+        `ptr`: Pointer?,
+        `senderNoiseSecretKeyHex`: RustBufferByValue,
+        `receiverPublicKey`: RustBufferByValue,
+        `receiverNoisePublicKey`: RustBufferByValue,
+        `localReceiverPath`: RustBufferByValue,
+        `remoteReceiverPath`: RustBufferByValue,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): Pointer?
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_probe_inbound_encrypted_link(
+        `ptr`: Pointer?,
+        `receiverNoiseSecretKeyHex`: RustBufferByValue,
+        `senderPublicKey`: RustBufferByValue,
+        `senderNoisePublicKey`: RustBufferByValue,
+        `localReceiverPath`: RustBufferByValue,
+        `remoteReceiverPath`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_pubky(
+        `ptr`: Pointer?,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_publish_receiver_marker(
+        `ptr`: Pointer?,
+        `receiverPath`: RustBufferByValue,
+        `noisePublicKey`: RustBufferByValue,
+        `capabilities`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_remove_receiver_marker(
+        `ptr`: Pointer?,
+        `receiverPath`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_restore_encrypted_link(
+        `ptr`: Pointer?,
+        `noiseSecretKeyHex`: RustBufferByValue,
+        `remotePublicKey`: RustBufferByValue,
+        `localReceiverPath`: RustBufferByValue,
+        `remoteReceiverPath`: RustBufferByValue,
+        `snapshotJson`: RustBufferByValue,
+    ): Long
+    @JvmStatic
+    external fun uniffi_paykit_fn_method_ffichatsession_restore_encrypted_link_handshake(
+        `ptr`: Pointer?,
+        `noiseSecretKeyHex`: RustBufferByValue,
+        `remotePublicKey`: RustBufferByValue,
+        `localReceiverPath`: RustBufferByValue,
+        `remoteReceiverPath`: RustBufferByValue,
+        `snapshotJson`: RustBufferByValue,
+    ): Long
     @JvmStatic
     external fun uniffi_paykit_fn_clone_ffipaykitsdk(
         `ptr`: Pointer?,
@@ -3486,6 +3990,10 @@ internal object UniffiLib : Library {
         uniffiCallStatus: UniffiRustCallStatus,
     ): RustBufferByValue
     @JvmStatic
+    external fun uniffi_paykit_fn_func_generate_receiver_noise_secret_key_hex(
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
     external fun uniffi_paykit_fn_func_normalize_pubky_public_key(
         `value`: RustBufferByValue,
         uniffiCallStatus: UniffiRustCallStatus,
@@ -3518,6 +4026,11 @@ internal object UniffiLib : Library {
     @JvmStatic
     external fun uniffi_paykit_fn_func_raw_pubky_public_key(
         `value`: RustBufferByValue,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_func_receiver_noise_public_key_from_secret_hex(
+        `secretKeyHex`: RustBufferByValue,
         uniffiCallStatus: UniffiRustCallStatus,
     ): RustBufferByValue
     @JvmStatic
@@ -3903,6 +4416,27 @@ private fun UniffiCleaner.Companion.create(): UniffiCleaner {
 }
 
 
+public object FfiConverterUByte: FfiConverter<UByte, Byte> {
+    override fun lift(value: Byte): UByte {
+        return value.toUByte()
+    }
+
+    override fun read(buf: ByteBuffer): UByte {
+        return lift(buf.get())
+    }
+
+    override fun lower(value: UByte): Byte {
+        return value.toByte()
+    }
+
+    override fun allocationSize(value: UByte): ULong = 1UL
+
+    override fun write(value: UByte, buf: ByteBuffer) {
+        buf.put(value.toByte())
+    }
+}
+
+
 public object FfiConverterUInt: FfiConverter<UInt, Int> {
     override fun lift(value: Int): UInt {
         return value.toUInt()
@@ -4027,6 +4561,1477 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
     override fun write(value: ByteArray, buf: ByteBuffer) {
         buf.putInt(value.size)
         buf.put(value)
+    }
+}
+
+
+
+/**
+ * An in-progress pubkyauth flow.
+ */
+public open class ChatAuthFlow: Disposable, ChatAuthFlowInterface {
+
+    public constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    public constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(null))
+    }
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed: kotlinx.atomicfu.AtomicBoolean = kotlinx.atomicfu.atomic(false)
+    private val callCounter: kotlinx.atomicfu.AtomicLong = kotlinx.atomicfu.atomic(1L)
+
+    private val lock = kotlinx.atomicfu.locks.ReentrantLock()
+
+    private fun <T> synchronized(block: () -> T): T {
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    override fun close() {
+        synchronized { this.destroy() }
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.value
+            if (c == 0L) {
+                throw IllegalStateException("${this::class::simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this::class::simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiPointerDestroyer(private val pointer: Pointer?) : Disposable {
+        override fun destroy() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.uniffi_paykit_fn_free_ffichatauthflow(ptr, status)
+                }
+            }
+        }
+    }
+
+    public fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall { status ->
+            UniffiLib.uniffi_paykit_fn_clone_ffichatauthflow(pointer!!, status)
+        }!!
+    }
+
+
+    /**
+     * The `pubkyauth:` URL to present to the signer (QR code / deep link).
+     */
+    public override fun `authorizationUrl`(): kotlin.String {
+        return FfiConverterString.lift(callWithPointer {
+            uniffiRustCall { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatauthflow_authorization_url(
+                    it,
+                    uniffiRustCallStatus,
+                )
+            }
+        })
+    }
+
+    /**
+     * Wait until the signer approves and return the session. Consumes the
+     * flow; subsequent calls fail.
+     *
+     * The approval wait is spawned onto the Tokio runtime so cancelling this
+     * FFI future cannot drop the underlying `PubkyAuthFlow`. A later call
+     * resumes the in-flight wait or returns its settled result.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `awaitApproval`(): ChatSession {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatauthflow_await_approval(
+                    thisPtr,
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_pointer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_pointer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_pointer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_pointer(future) },
+            // lift function
+            { FfiConverterTypeChatSession.lift(it!!) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+
+
+
+
+
+
+    public companion object
+
+}
+
+
+
+
+
+public object FfiConverterTypeChatAuthFlow: FfiConverter<ChatAuthFlow, Pointer> {
+
+    override fun lower(value: ChatAuthFlow): Pointer {
+        return value.uniffiClonePointer()
+    }
+
+    override fun lift(value: Pointer): ChatAuthFlow {
+        return ChatAuthFlow(value)
+    }
+
+    override fun read(buf: ByteBuffer): ChatAuthFlow {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(buf.getLong().toPointer())
+    }
+
+    override fun allocationSize(value: ChatAuthFlow): ULong = 8UL
+
+    override fun write(value: ChatAuthFlow, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(lower(value).toLong())
+    }
+}
+
+
+
+/**
+ * Pubky client facade for the chat surface. Construct once and reuse.
+ */
+public open class ChatClient: Disposable, ChatClientInterface {
+
+    public constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    public constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(null))
+    }
+    /**
+     * Construct with production Pubky network defaults.
+     */
+    public constructor() : this(
+        uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
+            UniffiLib.uniffi_paykit_fn_constructor_ffichatclient_new(
+                uniffiRustCallStatus,
+            )
+        }!!
+    )
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed: kotlinx.atomicfu.AtomicBoolean = kotlinx.atomicfu.atomic(false)
+    private val callCounter: kotlinx.atomicfu.AtomicLong = kotlinx.atomicfu.atomic(1L)
+
+    private val lock = kotlinx.atomicfu.locks.ReentrantLock()
+
+    private fun <T> synchronized(block: () -> T): T {
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    override fun close() {
+        synchronized { this.destroy() }
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.value
+            if (c == 0L) {
+                throw IllegalStateException("${this::class::simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this::class::simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiPointerDestroyer(private val pointer: Pointer?) : Disposable {
+        override fun destroy() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.uniffi_paykit_fn_free_ffichatclient(ptr, status)
+                }
+            }
+        }
+    }
+
+    public fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall { status ->
+            UniffiLib.uniffi_paykit_fn_clone_ffichatclient(pointer!!, status)
+        }!!
+    }
+
+
+    /**
+     * Fetch a counterparty's public Paykit Receiver Marker, or `None` when
+     * the owner has not published one at that path.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `getReceiverMarker`(`ownerPublicKey`: kotlin.String, `receiverPath`: kotlin.String): ChatReceiverMarker? {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatclient_get_receiver_marker(
+                    thisPtr,
+                    FfiConverterString.lower(`ownerPublicKey`),
+                    FfiConverterString.lower(`receiverPath`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_rust_buffer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_rust_buffer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_rust_buffer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_rust_buffer(future) },
+            // lift function
+            { FfiConverterOptionalTypeFfiChatReceiverMarker.lift(it) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Restore a homeserver session from a token previously produced by
+     * `ChatSession.export_session()`, without a new signer approval.
+     *
+     * Performs a `/session` round-trip to revalidate; it rejects if the
+     * token is malformed, expired, or revoked.
+     *
+     * The platform caller must minimize its own copies of `exported_session`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `restoreSession`(`exportedSession`: kotlin.String): ChatSession {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatclient_restore_session(
+                    thisPtr,
+                    FfiConverterString.lower(`exportedSession`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_pointer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_pointer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_pointer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_pointer(future) },
+            // lift function
+            { FfiConverterTypeChatSession.lift(it!!) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Sign in with a raw identity secret key (hex, 32 bytes).
+     *
+     * Suitable for apps that hold the identity key in platform secure
+     * storage. Apps that keep the identity key in an external signer (Pubky
+     * Ring) should use `start_auth_flow` instead.
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `signinWithSecret`(`identitySecretKeyHex`: kotlin.String): ChatSession {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatclient_signin_with_secret(
+                    thisPtr,
+                    FfiConverterString.lower(`identitySecretKeyHex`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_pointer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_pointer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_pointer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_pointer(future) },
+            // lift function
+            { FfiConverterTypeChatSession.lift(it!!) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Sign up a new account on a homeserver with a raw identity secret key
+     * (hex, 32 bytes).
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `signupWithSecret`(`identitySecretKeyHex`: kotlin.String, `homeserverPublicKey`: kotlin.String, `signupToken`: kotlin.String?): ChatSession {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatclient_signup_with_secret(
+                    thisPtr,
+                    FfiConverterString.lower(`identitySecretKeyHex`),
+                    FfiConverterString.lower(`homeserverPublicKey`),
+                    FfiConverterOptionalString.lower(`signupToken`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_pointer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_pointer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_pointer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_pointer(future) },
+            // lift function
+            { FfiConverterTypeChatSession.lift(it!!) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Start a pubkyauth sign-in flow for the given capabilities
+     * (e.g. `"/pub/paykit/:rw"`). Present `authorization_url()` to the
+     * signer (Pubky Ring), then call `await_approval()`.
+     *
+     * `relay_url` overrides the default public HTTP relay inbox; pass `None`
+     * in production (matching the wasm binding), or a local relay inbox URL
+     * against a testnet.
+     *
+     * Rejects unless the capabilities grant read+write over `/pub/paykit/`
+     * (exact tree, a directory prefix, or `/`).
+     *
+     * This method stays `async` even though the wrapper itself does not
+     * `.await`: `PubkyAuthFlow` construction starts a relay subscription and
+     * requires a Tokio reactor. A sync export panics outside that runtime
+     * (`there is no reactor running`).
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `startAuthFlow`(`capabilities`: kotlin.String, `relayUrl`: kotlin.String?): ChatAuthFlow {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatclient_start_auth_flow(
+                    thisPtr,
+                    FfiConverterString.lower(`capabilities`),
+                    FfiConverterOptionalString.lower(`relayUrl`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_pointer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_pointer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_pointer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_pointer(future) },
+            // lift function
+            { FfiConverterTypeChatAuthFlow.lift(it!!) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+
+
+
+
+
+    public companion object {
+
+        /**
+         * Construct with explicit Pubky client configuration (timeouts, local
+         * testnet host).
+         */
+        @Throws(PaykitException::class)
+        public fun `withPubkyClientConfig`(`pubkyClient`: PubkyClientConfig): ChatClient {
+            return FfiConverterTypeChatClient.lift(uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_constructor_ffichatclient_with_pubky_client_config(
+                    FfiConverterTypePubkyClientConfig.lower(`pubkyClient`),
+                    uniffiRustCallStatus,
+                )
+            }!!)
+        }
+
+
+    }
+
+}
+
+
+
+
+
+public object FfiConverterTypeChatClient: FfiConverter<ChatClient, Pointer> {
+
+    override fun lower(value: ChatClient): Pointer {
+        return value.uniffiClonePointer()
+    }
+
+    override fun lift(value: Pointer): ChatClient {
+        return ChatClient(value)
+    }
+
+    override fun read(buf: ByteBuffer): ChatClient {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(buf.getLong().toPointer())
+    }
+
+    override fun allocationSize(value: ChatClient): ULong = 8UL
+
+    override fun write(value: ChatClient, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(lower(value).toLong())
+    }
+}
+
+
+
+/**
+ * Handle to an established Encrypted Link.
+ */
+public open class ChatLink: Disposable, ChatLinkInterface {
+
+    public constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    public constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(null))
+    }
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed: kotlinx.atomicfu.AtomicBoolean = kotlinx.atomicfu.atomic(false)
+    private val callCounter: kotlinx.atomicfu.AtomicLong = kotlinx.atomicfu.atomic(1L)
+
+    private val lock = kotlinx.atomicfu.locks.ReentrantLock()
+
+    private fun <T> synchronized(block: () -> T): T {
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    override fun close() {
+        synchronized { this.destroy() }
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.value
+            if (c == 0L) {
+                throw IllegalStateException("${this::class::simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this::class::simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiPointerDestroyer(private val pointer: Pointer?) : Disposable {
+        override fun destroy() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.uniffi_paykit_fn_free_ffichatlink(ptr, status)
+                }
+            }
+        }
+    }
+
+    public fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall { status ->
+            UniffiLib.uniffi_paykit_fn_clone_ffichatlink(pointer!!, status)
+        }!!
+    }
+
+
+    /**
+     * Close the link and clean up Noise session state. The handle becomes
+     * unusable afterwards.
+     *
+     * Close is spawned onto the Tokio runtime so cancelling this FFI future
+     * cannot drop the `EncryptedLink` before cleanup. A later `close`
+     * resumes or returns the settled result.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `close`() {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_close(
+                    thisPtr,
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_void(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_void(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_void(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_void(future) },
+            // lift function
+            { Unit },
+
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Local Paykit receiver path.
+     */
+    public override fun `localReceiverPath`(): kotlin.String {
+        return FfiConverterString.lift(callWithPointer {
+            uniffiRustCall { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_local_receiver_path(
+                    it,
+                    uniffiRustCallStatus,
+                )
+            }
+        })
+    }
+
+    /**
+     * Receive available Private Application Messages in stream order.
+     *
+     * Persist returned messages before replacing a stored link snapshot: the
+     * read checkpoint advances past them.
+     *
+     * The receive is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `receive` resumes or
+     * returns the settled result.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `receivePrivateApplicationMessages`(): List<ChatMessage> {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_receive_private_application_messages(
+                    thisPtr,
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_rust_buffer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_rust_buffer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_rust_buffer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_rust_buffer(future) },
+            // lift function
+            { FfiConverterSequenceTypeChatMessage.lift(it) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Counterparty Pubky identity public key (z-base-32).
+     */
+    public override fun `recipient`(): kotlin.String {
+        return FfiConverterString.lift(callWithPointer {
+            uniffiRustCall { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_recipient(
+                    it,
+                    uniffiRustCallStatus,
+                )
+            }
+        })
+    }
+
+    /**
+     * Counterparty receiver Noise public key (z-base-32).
+     */
+    public override fun `remoteNoisePublicKey`(): kotlin.String {
+        return FfiConverterString.lift(callWithPointer {
+            uniffiRustCall { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_remote_noise_public_key(
+                    it,
+                    uniffiRustCallStatus,
+                )
+            }
+        })
+    }
+
+    /**
+     * Counterparty Paykit receiver path.
+     */
+    public override fun `remoteReceiverPath`(): kotlin.String {
+        return FfiConverterString.lift(callWithPointer {
+            uniffiRustCall { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_remote_receiver_path(
+                    it,
+                    uniffiRustCallStatus,
+                )
+            }
+        })
+    }
+
+    /**
+     * Send one raw JSON Private Application Message. The JSON must carry a
+     * `version` (u8) and `kind` (string) envelope; unknown kinds such as
+     * `chat.message.v0` are allowed by contract.
+     *
+     * Persist the exact JSON before sending when retrying the same message
+     * matters.
+     *
+     * The send is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `send` of the **same**
+     * `raw_json` resumes or returns the settled result. A later `send` of a
+     * **different** payload drains a settled parked result and starts a
+     * fresh send; if a send of another payload is still in flight, this
+     * returns `protocol/parked_result_conflict` so the new message is not
+     * silently dropped.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `sendPrivateApplicationMessageJson`(`rawJson`: kotlin.String) {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_send_private_application_message_json(
+                    thisPtr,
+                    FfiConverterString.lower(`rawJson`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_void(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_void(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_void(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_void(future) },
+            // lift function
+            { Unit },
+
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Override the automatic send retry limit for transient homeserver
+     * write failures.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `setMaxSendRetries`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `setMaxSendRetries`(`max`: kotlin.UInt) {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_set_max_send_retries(
+                    thisPtr,
+                    FfiConverterUInt.lower(`max`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_void(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_void(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_void(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_void(future) },
+            // lift function
+            { Unit },
+
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Serialize the current link state as an opaque JSON string for
+     * persistence. Take a fresh snapshot after sending/receiving when
+     * persisted counters must catch up. The snapshot contains key material —
+     * store it as a secret.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `EncryptedLinkHandle.snapshot`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `snapshot`(): kotlin.String {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_snapshot(
+                    thisPtr,
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_rust_buffer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_rust_buffer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_rust_buffer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_rust_buffer(future) },
+            // lift function
+            { FfiConverterString.lift(it) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+
+
+
+
+
+
+    public companion object
+
+}
+
+
+
+
+
+public object FfiConverterTypeChatLink: FfiConverter<ChatLink, Pointer> {
+
+    override fun lower(value: ChatLink): Pointer {
+        return value.uniffiClonePointer()
+    }
+
+    override fun lift(value: Pointer): ChatLink {
+        return ChatLink(value)
+    }
+
+    override fun read(buf: ByteBuffer): ChatLink {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(buf.getLong().toPointer())
+    }
+
+    override fun allocationSize(value: ChatLink): ULong = 8UL
+
+    override fun write(value: ChatLink, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(lower(value).toLong())
+    }
+}
+
+
+
+/**
+ * Handle to an in-progress Encrypted Link Handshake.
+ */
+public open class ChatLinkHandshake: Disposable, ChatLinkHandshakeInterface {
+
+    public constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    public constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(null))
+    }
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed: kotlinx.atomicfu.AtomicBoolean = kotlinx.atomicfu.atomic(false)
+    private val callCounter: kotlinx.atomicfu.AtomicLong = kotlinx.atomicfu.atomic(1L)
+
+    private val lock = kotlinx.atomicfu.locks.ReentrantLock()
+
+    private fun <T> synchronized(block: () -> T): T {
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    override fun close() {
+        synchronized { this.destroy() }
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.value
+            if (c == 0L) {
+                throw IllegalStateException("${this::class::simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this::class::simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiPointerDestroyer(private val pointer: Pointer?) : Disposable {
+        override fun destroy() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.uniffi_paykit_fn_free_ffichatlinkhandshake(ptr, status)
+                }
+            }
+        }
+    }
+
+    public fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall { status ->
+            UniffiLib.uniffi_paykit_fn_clone_ffichatlinkhandshake(pointer!!, status)
+        }!!
+    }
+
+
+    /**
+     * Advance the handshake by one step.
+     *
+     * Returns `complete = false` when the counterparty has not written their
+     * next message yet (poll again after a delay) and `complete = true` with
+     * the established link when the handshake finished.
+     *
+     * The step is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLinkHandshake`. A later `advance`
+     * resumes the in-flight step or returns its settled result.
+     *
+     * If the step errors, the in-memory handshake is consumed (matching the
+     * paykit-lib ownership model); recover via
+     * `ChatSession.restore_encrypted_link_handshake` with a persisted
+     * snapshot.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `advance`(): ChatHandshakeStep {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlinkhandshake_advance(
+                    thisPtr,
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_rust_buffer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_rust_buffer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_rust_buffer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_rust_buffer(future) },
+            // lift function
+            { FfiConverterTypeChatHandshakeStep.lift(it) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Override the automatic write-failure recovery attempt limit.
+     *
+     * Fail-fast while `advance` is in flight, matching wasm
+     * `setMaxRecoveryAttempts`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `setMaxRecoveryAttempts`(`max`: kotlin.UInt) {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlinkhandshake_set_max_recovery_attempts(
+                    thisPtr,
+                    FfiConverterUInt.lower(`max`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_void(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_void(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_void(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_void(future) },
+            // lift function
+            { Unit },
+
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Serialize the current handshake state as an opaque JSON string. The
+     * snapshot contains key material — store it as a secret.
+     *
+     * Fail-fast (does not wait for an in-flight `advance`), matching the
+     * wasm `LinkHandshakeHandle.snapshot` semantics.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `snapshot`(): kotlin.String {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatlinkhandshake_snapshot(
+                    thisPtr,
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_rust_buffer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_rust_buffer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_rust_buffer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_rust_buffer(future) },
+            // lift function
+            { FfiConverterString.lift(it) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+
+
+
+
+
+
+    public companion object
+
+}
+
+
+
+
+
+public object FfiConverterTypeChatLinkHandshake: FfiConverter<ChatLinkHandshake, Pointer> {
+
+    override fun lower(value: ChatLinkHandshake): Pointer {
+        return value.uniffiClonePointer()
+    }
+
+    override fun lift(value: Pointer): ChatLinkHandshake {
+        return ChatLinkHandshake(value)
+    }
+
+    override fun read(buf: ByteBuffer): ChatLinkHandshake {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(buf.getLong().toPointer())
+    }
+
+    override fun allocationSize(value: ChatLinkHandshake): ULong = 8UL
+
+    override fun write(value: ChatLinkHandshake, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(lower(value).toLong())
+    }
+}
+
+
+
+/**
+ * An authenticated homeserver session for one Pubky identity, retaining the
+ * client it was created with for Encrypted Link outbox operations.
+ */
+public open class ChatSession: Disposable, ChatSessionInterface {
+
+    public constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    public constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiPointerDestroyer(null))
+    }
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed: kotlinx.atomicfu.AtomicBoolean = kotlinx.atomicfu.atomic(false)
+    private val callCounter: kotlinx.atomicfu.AtomicLong = kotlinx.atomicfu.atomic(1L)
+
+    private val lock = kotlinx.atomicfu.locks.ReentrantLock()
+
+    private fun <T> synchronized(block: () -> T): T {
+        lock.lock()
+        try {
+            return block()
+        } finally {
+            lock.unlock()
+        }
+    }
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    override fun close() {
+        synchronized { this.destroy() }
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.value
+            if (c == 0L) {
+                throw IllegalStateException("${this::class::simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this::class::simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiPointerDestroyer(private val pointer: Pointer?) : Disposable {
+        override fun destroy() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.uniffi_paykit_fn_free_ffichatsession(ptr, status)
+                }
+            }
+        }
+    }
+
+    public fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall { status ->
+            UniffiLib.uniffi_paykit_fn_clone_ffichatsession(pointer!!, status)
+        }!!
+    }
+
+
+    /**
+     * Accept a Noise XX Encrypted Link Handshake from a counterparty
+     * (responder role).
+     *
+     * Prefer `probe_inbound_encrypted_link` when the app must distinguish
+     * "no inbound handshake exists" from transport or protocol failure.
+     * Calling `accept_encrypted_link` then `advance` when nothing is inbound
+     * yields a pending empty responder and can deadlock a crossed initiate.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class)
+    public override fun `acceptEncryptedLink`(`receiverNoiseSecretKeyHex`: kotlin.String, `senderPublicKey`: kotlin.String, `senderNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): ChatLinkHandshake {
+        return FfiConverterTypeChatLinkHandshake.lift(callWithPointer {
+            uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_accept_encrypted_link(
+                    it,
+                    FfiConverterString.lower(`receiverNoiseSecretKeyHex`),
+                    FfiConverterString.lower(`senderPublicKey`),
+                    FfiConverterString.lower(`senderNoisePublicKey`),
+                    FfiConverterString.lower(`localReceiverPath`),
+                    FfiConverterString.lower(`remoteReceiverPath`),
+                    uniffiRustCallStatus,
+                )
+            }!!
+        })
+    }
+
+    /**
+     * Delete all encrypted stream slots written by the local identity for
+     * one counterparty (recovery before a fresh handshake). Returns the
+     * number of deleted slots.
+     *
+     * The platform caller must minimize its own copies of
+     * `local_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `clearEncryptedLinkOutbox`(`localNoiseSecretKeyHex`: kotlin.String, `remotePublicKey`: kotlin.String, `remoteNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): kotlin.ULong {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_clear_encrypted_link_outbox(
+                    thisPtr,
+                    FfiConverterString.lower(`localNoiseSecretKeyHex`),
+                    FfiConverterString.lower(`remotePublicKey`),
+                    FfiConverterString.lower(`remoteNoisePublicKey`),
+                    FfiConverterString.lower(`localReceiverPath`),
+                    FfiConverterString.lower(`remoteReceiverPath`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_u64(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_u64(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_u64(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_u64(future) },
+            // lift function
+            { FfiConverterULong.lift(it) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Export a compact session token for rehydrating via
+     * `ChatClient.restore_session()` after an app restart.
+     *
+     * Unlike the browser binding (where the credential lives in an HTTP-only
+     * cookie), the returned token is itself the **bearer secret** for this
+     * session. Do not log it; store it in platform secure storage. The
+     * platform caller must minimize its own copies of the returned token.
+     * UniFFI requires a `String` return, so this binding cannot wipe the
+     * caller's copy after the call returns.
+     */
+    public override fun `exportSession`(): kotlin.String {
+        return FfiConverterString.lift(callWithPointer {
+            uniffiRustCall { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_export_session(
+                    it,
+                    uniffiRustCallStatus,
+                )
+            }
+        })
+    }
+
+    /**
+     * Initiate a Noise XX Encrypted Link Handshake toward a counterparty
+     * (initiator role).
+     *
+     * `receiver_noise_public_key` comes from the counterparty's Receiver
+     * Marker (see `ChatClient.get_receiver_marker`). Drive the returned
+     * handshake with `advance()` until it completes.
+     *
+     * The platform caller must minimize its own copies of
+     * `sender_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class)
+    public override fun `initiateEncryptedLink`(`senderNoiseSecretKeyHex`: kotlin.String, `receiverPublicKey`: kotlin.String, `receiverNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): ChatLinkHandshake {
+        return FfiConverterTypeChatLinkHandshake.lift(callWithPointer {
+            uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_initiate_encrypted_link(
+                    it,
+                    FfiConverterString.lower(`senderNoiseSecretKeyHex`),
+                    FfiConverterString.lower(`receiverPublicKey`),
+                    FfiConverterString.lower(`receiverNoisePublicKey`),
+                    FfiConverterString.lower(`localReceiverPath`),
+                    FfiConverterString.lower(`remoteReceiverPath`),
+                    uniffiRustCallStatus,
+                )
+            }!!
+        })
+    }
+
+    /**
+     * Atomically probe for an inbound Encrypted Link Handshake.
+     *
+     * Performs an explicit public-storage GET of the first inbound handshake
+     * slot before creating a responder. That GET is what distinguishes:
+     * - `NoInbound` — 404/GONE / empty slot (not an error)
+     * - `transport/transport_error` — network or non-404 homeserver failure
+     * - `Pending` / `Established` — inbound consumed via `accept` + one
+     * `advance` (response written when the step proceeds)
+     * - `protocol/handshake_failed` — inbound existed but the protocol step
+     * failed (unrecoverable for this handle)
+     *
+     * Use this instead of blindly `accept`+`advance` when both peers may
+     * initiate at once: `NoInbound` means no inbound was observed at probe
+     * time; when racing is possible, re-probe before initiating. A
+     * `Pending`/`Established` result means this side should be the responder.
+     *
+     * The whole probe is spawned onto the Tokio runtime so cancelling the
+     * FFI future cannot drop a responder that already consumed inbound. A
+     * later call with the same peer key resumes or returns the settled
+     * result.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `probeInboundEncryptedLink`(`receiverNoiseSecretKeyHex`: kotlin.String, `senderPublicKey`: kotlin.String, `senderNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): ChatProbeResult {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_probe_inbound_encrypted_link(
+                    thisPtr,
+                    FfiConverterString.lower(`receiverNoiseSecretKeyHex`),
+                    FfiConverterString.lower(`senderPublicKey`),
+                    FfiConverterString.lower(`senderNoisePublicKey`),
+                    FfiConverterString.lower(`localReceiverPath`),
+                    FfiConverterString.lower(`remoteReceiverPath`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_rust_buffer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_rust_buffer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_rust_buffer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_rust_buffer(future) },
+            // lift function
+            { FfiConverterTypeChatProbeResult.lift(it) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * The session owner's public key (z-base-32).
+     */
+    public override fun `pubky`(): kotlin.String {
+        return FfiConverterString.lift(callWithPointer {
+            uniffiRustCall { uniffiRustCallStatus ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_pubky(
+                    it,
+                    uniffiRustCallStatus,
+                )
+            }
+        })
+    }
+
+    /**
+     * Publish a public Paykit Receiver Marker for the session owner, making
+     * the receiver path discoverable and advertising the receiver Noise
+     * public key used for Encrypted Link path derivation.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `publishReceiverMarker`(`receiverPath`: kotlin.String, `noisePublicKey`: kotlin.String, `capabilities`: ChatReceiverCapabilities) {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_publish_receiver_marker(
+                    thisPtr,
+                    FfiConverterString.lower(`receiverPath`),
+                    FfiConverterString.lower(`noisePublicKey`),
+                    FfiConverterTypeChatReceiverCapabilities.lower(`capabilities`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_void(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_void(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_void(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_void(future) },
+            // lift function
+            { Unit },
+
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Remove the session owner's public Paykit Receiver Marker at a path.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `removeReceiverMarker`(`receiverPath`: kotlin.String) {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_remove_receiver_marker(
+                    thisPtr,
+                    FfiConverterString.lower(`receiverPath`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_void(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_void(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_void(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_void(future) },
+            // lift function
+            { Unit },
+
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Restore an established Encrypted Link from a snapshot JSON string
+     * previously produced by `ChatLink.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `restoreEncryptedLink`(`noiseSecretKeyHex`: kotlin.String, `remotePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String, `snapshotJson`: kotlin.String): ChatLink {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_restore_encrypted_link(
+                    thisPtr,
+                    FfiConverterString.lower(`noiseSecretKeyHex`),
+                    FfiConverterString.lower(`remotePublicKey`),
+                    FfiConverterString.lower(`localReceiverPath`),
+                    FfiConverterString.lower(`remoteReceiverPath`),
+                    FfiConverterString.lower(`snapshotJson`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_pointer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_pointer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_pointer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_pointer(future) },
+            // lift function
+            { FfiConverterTypeChatLink.lift(it!!) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+    /**
+     * Restore an in-progress handshake from a snapshot JSON string
+     * previously produced by `ChatLinkHandshake.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public override suspend fun `restoreEncryptedLinkHandshake`(`noiseSecretKeyHex`: kotlin.String, `remotePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String, `snapshotJson`: kotlin.String): ChatLinkHandshake {
+        return uniffiRustCallAsync(
+            callWithPointer { thisPtr ->
+                UniffiLib.uniffi_paykit_fn_method_ffichatsession_restore_encrypted_link_handshake(
+                    thisPtr,
+                    FfiConverterString.lower(`noiseSecretKeyHex`),
+                    FfiConverterString.lower(`remotePublicKey`),
+                    FfiConverterString.lower(`localReceiverPath`),
+                    FfiConverterString.lower(`remoteReceiverPath`),
+                    FfiConverterString.lower(`snapshotJson`),
+                )
+            },
+            { future, callback, continuation -> UniffiLib.ffi_paykit_rust_future_poll_pointer(future, callback, continuation) },
+            { future, continuation -> UniffiLib.ffi_paykit_rust_future_complete_pointer(future, continuation) },
+            { future -> UniffiLib.ffi_paykit_rust_future_free_pointer(future) },
+            { future -> UniffiLib.ffi_paykit_rust_future_cancel_pointer(future) },
+            // lift function
+            { FfiConverterTypeChatLinkHandshake.lift(it!!) },
+            // Error FFI converter
+            PaykitExceptionErrorHandler,
+        )
+    }
+
+
+
+
+
+
+
+    public companion object
+
+}
+
+
+
+
+
+public object FfiConverterTypeChatSession: FfiConverter<ChatSession, Pointer> {
+
+    override fun lower(value: ChatSession): Pointer {
+        return value.uniffiClonePointer()
+    }
+
+    override fun lift(value: Pointer): ChatSession {
+        return ChatSession(value)
+    }
+
+    override fun read(buf: ByteBuffer): ChatSession {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(buf.getLong().toPointer())
+    }
+
+    override fun allocationSize(value: ChatSession): ULong = 8UL
+
+    override fun write(value: ChatSession, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(lower(value).toLong())
     }
 }
 
@@ -9491,6 +11496,106 @@ public object FfiConverterTypeBillingPeriod: FfiConverterRustBuffer<BillingPerio
 
 
 
+public object FfiConverterTypeChatHandshakeStep: FfiConverterRustBuffer<ChatHandshakeStep> {
+    override fun read(buf: ByteBuffer): ChatHandshakeStep {
+        return ChatHandshakeStep(
+            FfiConverterBoolean.read(buf),
+            FfiConverterOptionalTypeFfiChatLink.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ChatHandshakeStep): ULong = (
+            FfiConverterBoolean.allocationSize(value.`complete`) +
+            FfiConverterOptionalTypeFfiChatLink.allocationSize(value.`link`)
+    )
+
+    override fun write(value: ChatHandshakeStep, buf: ByteBuffer) {
+        FfiConverterBoolean.write(value.`complete`, buf)
+        FfiConverterOptionalTypeFfiChatLink.write(value.`link`, buf)
+    }
+}
+
+
+
+
+public object FfiConverterTypeChatMessage: FfiConverterRustBuffer<ChatMessage> {
+    override fun read(buf: ByteBuffer): ChatMessage {
+        return ChatMessage(
+            FfiConverterOptionalUByte.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ChatMessage): ULong = (
+            FfiConverterOptionalUByte.allocationSize(value.`version`) +
+            FfiConverterOptionalString.allocationSize(value.`kind`) +
+            FfiConverterString.allocationSize(value.`rawJson`)
+    )
+
+    override fun write(value: ChatMessage, buf: ByteBuffer) {
+        FfiConverterOptionalUByte.write(value.`version`, buf)
+        FfiConverterOptionalString.write(value.`kind`, buf)
+        FfiConverterString.write(value.`rawJson`, buf)
+    }
+}
+
+
+
+
+public object FfiConverterTypeChatReceiverCapabilities: FfiConverterRustBuffer<ChatReceiverCapabilities> {
+    override fun read(buf: ByteBuffer): ChatReceiverCapabilities {
+        return ChatReceiverCapabilities(
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ChatReceiverCapabilities): ULong = (
+            FfiConverterBoolean.allocationSize(value.`privatePayments`) +
+            FfiConverterBoolean.allocationSize(value.`paymentRequests`) +
+            FfiConverterBoolean.allocationSize(value.`receipts`) +
+            FfiConverterBoolean.allocationSize(value.`outgoingPayments`)
+    )
+
+    override fun write(value: ChatReceiverCapabilities, buf: ByteBuffer) {
+        FfiConverterBoolean.write(value.`privatePayments`, buf)
+        FfiConverterBoolean.write(value.`paymentRequests`, buf)
+        FfiConverterBoolean.write(value.`receipts`, buf)
+        FfiConverterBoolean.write(value.`outgoingPayments`, buf)
+    }
+}
+
+
+
+
+public object FfiConverterTypeChatReceiverMarker: FfiConverterRustBuffer<ChatReceiverMarker> {
+    override fun read(buf: ByteBuffer): ChatReceiverMarker {
+        return ChatReceiverMarker(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterTypeChatReceiverCapabilities.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ChatReceiverMarker): ULong = (
+            FfiConverterString.allocationSize(value.`receiverPath`) +
+            FfiConverterString.allocationSize(value.`noisePublicKey`) +
+            FfiConverterTypeChatReceiverCapabilities.allocationSize(value.`capabilities`)
+    )
+
+    override fun write(value: ChatReceiverMarker, buf: ByteBuffer) {
+        FfiConverterString.write(value.`receiverPath`, buf)
+        FfiConverterString.write(value.`noisePublicKey`, buf)
+        FfiConverterTypeChatReceiverCapabilities.write(value.`capabilities`, buf)
+    }
+}
+
+
+
+
 public object FfiConverterTypeContactProfileResolution: FfiConverterRustBuffer<ContactProfileResolution> {
     override fun read(buf: ByteBuffer): ContactProfileResolution {
         return ContactProfileResolution(
@@ -11710,6 +13815,67 @@ public object FfiConverterTypeSdkStateBlobSnapshot: FfiConverterRustBuffer<SdkSt
 
 
 
+public object FfiConverterTypeChatProbeResult : FfiConverterRustBuffer<ChatProbeResult>{
+    override fun read(buf: ByteBuffer): ChatProbeResult {
+        return when(buf.getInt()) {
+            1 -> ChatProbeResult.NoInbound
+            2 -> ChatProbeResult.Pending(
+                FfiConverterTypeChatLinkHandshake.read(buf),
+                )
+            3 -> ChatProbeResult.Established(
+                FfiConverterTypeChatLink.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: ChatProbeResult): ULong = when(value) {
+        is ChatProbeResult.NoInbound -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is ChatProbeResult.Pending -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeChatLinkHandshake.allocationSize(value.`handshake`)
+            )
+        }
+        is ChatProbeResult.Established -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeChatLink.allocationSize(value.`link`)
+            )
+        }
+    }
+
+    override fun write(value: ChatProbeResult, buf: ByteBuffer) {
+        when(value) {
+            is ChatProbeResult.NoInbound -> {
+                buf.putInt(1)
+                Unit
+            }
+            is ChatProbeResult.Pending -> {
+                buf.putInt(2)
+                FfiConverterTypeChatLinkHandshake.write(value.`handshake`, buf)
+                Unit
+            }
+            is ChatProbeResult.Established -> {
+                buf.putInt(3)
+                FfiConverterTypeChatLink.write(value.`link`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
 public object FfiConverterTypeContactProfileSource: FfiConverterRustBuffer<ContactProfileSource> {
     override fun read(buf: ByteBuffer): ContactProfileSource = try {
         ContactProfileSource.entries[buf.getInt() - 1]
@@ -12284,6 +14450,35 @@ public object FfiConverterTypePaykitError : FfiConverterRustBuffer<PaykitExcepti
 
 
 
+public object FfiConverterOptionalUByte: FfiConverterRustBuffer<kotlin.UByte?> {
+    override fun read(buf: ByteBuffer): kotlin.UByte? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterUByte.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.UByte?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterUByte.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.UByte?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterUByte.write(value, buf)
+        }
+    }
+}
+
+
+
+
 public object FfiConverterOptionalULong: FfiConverterRustBuffer<kotlin.ULong?> {
     override fun read(buf: ByteBuffer): kotlin.ULong? {
         if (buf.get().toInt() == 0) {
@@ -12400,6 +14595,35 @@ public object FfiConverterOptionalByteArray: FfiConverterRustBuffer<kotlin.ByteA
 
 
 
+public object FfiConverterOptionalTypeFfiChatLink: FfiConverterRustBuffer<ChatLink?> {
+    override fun read(buf: ByteBuffer): ChatLink? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeChatLink.read(buf)
+    }
+
+    override fun allocationSize(value: ChatLink?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeChatLink.allocationSize(value)
+        }
+    }
+
+    override fun write(value: ChatLink?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeChatLink.write(value, buf)
+        }
+    }
+}
+
+
+
+
 public object FfiConverterOptionalTypeFfiPrivateOperationError: FfiConverterRustBuffer<PrivateOperationError?> {
     override fun read(buf: ByteBuffer): PrivateOperationError? {
         if (buf.get().toInt() == 0) {
@@ -12509,6 +14733,35 @@ public object FfiConverterOptionalTypeFfiBillingPeriod: FfiConverterRustBuffer<B
         } else {
             buf.put(1)
             FfiConverterTypeBillingPeriod.write(value, buf)
+        }
+    }
+}
+
+
+
+
+public object FfiConverterOptionalTypeFfiChatReceiverMarker: FfiConverterRustBuffer<ChatReceiverMarker?> {
+    override fun read(buf: ByteBuffer): ChatReceiverMarker? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeChatReceiverMarker.read(buf)
+    }
+
+    override fun allocationSize(value: ChatReceiverMarker?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeChatReceiverMarker.allocationSize(value)
+        }
+    }
+
+    override fun write(value: ChatReceiverMarker?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeChatReceiverMarker.write(value, buf)
         }
     }
 }
@@ -13168,6 +15421,31 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterString.write(it, buf)
+        }
+    }
+}
+
+
+
+
+public object FfiConverterSequenceTypeChatMessage: FfiConverterRustBuffer<List<ChatMessage>> {
+    override fun read(buf: ByteBuffer): List<ChatMessage> {
+        val len = buf.getInt()
+        return List<ChatMessage>(len) {
+            FfiConverterTypeChatMessage.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ChatMessage>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.sumOf { FfiConverterTypeChatMessage.allocationSize(it) }
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ChatMessage>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeChatMessage.write(it, buf)
         }
     }
 }
@@ -14030,6 +16308,23 @@ public fun `generateReceiptId`(): kotlin.String {
 }
 
 /**
+ * Generate a random receiver-scoped Noise secret key, hex encoded (32 bytes).
+ *
+ * Mirrors `paykit-wasm`'s `generateNoiseSecretKey`: the key is an independent
+ * random secret, never the Pubky identity secret. Store it in platform secure
+ * storage; it is required to restore Encrypted Links and to derive private
+ * message paths. The platform caller must minimize its own copies of the
+ * returned hex.
+ */
+public fun `generateReceiverNoiseSecretKeyHex`(): kotlin.String {
+    return FfiConverterString.lift(uniffiRustCall { uniffiRustCallStatus ->
+        UniffiLib.uniffi_paykit_fn_func_generate_receiver_noise_secret_key_hex(
+            uniffiRustCallStatus,
+        )
+    })
+}
+
+/**
  * Normalize raw z32 or `pubky...` public-key text to app-key form.
  */
 @Throws(PaykitException::class)
@@ -14115,6 +16410,24 @@ public fun `rawPubkyPublicKey`(`value`: kotlin.String): kotlin.String {
     return FfiConverterString.lift(uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
         UniffiLib.uniffi_paykit_fn_func_raw_pubky_public_key(
             FfiConverterString.lower(`value`),
+            uniffiRustCallStatus,
+        )
+    })
+}
+
+/**
+ * Derive the z-base-32 public key published in a Receiver Marker from a hex
+ * receiver Noise secret key.
+ *
+ * Mirrors `paykit-wasm`'s `noisePublicKeyFromSecret`.
+ *
+ * The platform caller must minimize its own copies of `secret_key_hex`.
+ */
+@Throws(PaykitException::class)
+public fun `receiverNoisePublicKeyFromSecretHex`(`secretKeyHex`: kotlin.String): kotlin.String {
+    return FfiConverterString.lift(uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
+        UniffiLib.uniffi_paykit_fn_func_receiver_noise_public_key_from_secret_hex(
+            FfiConverterString.lower(`secretKeyHex`),
             uniffiRustCallStatus,
         )
     })

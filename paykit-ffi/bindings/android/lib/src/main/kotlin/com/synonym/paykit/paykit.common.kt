@@ -105,6 +105,385 @@ public object NoPointer
 
 
 
+
+
+/**
+ * An in-progress pubkyauth flow.
+ */
+public interface ChatAuthFlowInterface {
+
+    /**
+     * The `pubkyauth:` URL to present to the signer (QR code / deep link).
+     */
+    public fun `authorizationUrl`(): kotlin.String
+
+    /**
+     * Wait until the signer approves and return the session. Consumes the
+     * flow; subsequent calls fail.
+     *
+     * The approval wait is spawned onto the Tokio runtime so cancelling this
+     * FFI future cannot drop the underlying `PubkyAuthFlow`. A later call
+     * resumes the in-flight wait or returns its settled result.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `awaitApproval`(): ChatSession
+
+    public companion object
+}
+
+
+
+
+/**
+ * Pubky client facade for the chat surface. Construct once and reuse.
+ */
+public interface ChatClientInterface {
+
+    /**
+     * Fetch a counterparty's public Paykit Receiver Marker, or `None` when
+     * the owner has not published one at that path.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `getReceiverMarker`(`ownerPublicKey`: kotlin.String, `receiverPath`: kotlin.String): ChatReceiverMarker?
+
+    /**
+     * Restore a homeserver session from a token previously produced by
+     * `ChatSession.export_session()`, without a new signer approval.
+     *
+     * Performs a `/session` round-trip to revalidate; it rejects if the
+     * token is malformed, expired, or revoked.
+     *
+     * The platform caller must minimize its own copies of `exported_session`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `restoreSession`(`exportedSession`: kotlin.String): ChatSession
+
+    /**
+     * Sign in with a raw identity secret key (hex, 32 bytes).
+     *
+     * Suitable for apps that hold the identity key in platform secure
+     * storage. Apps that keep the identity key in an external signer (Pubky
+     * Ring) should use `start_auth_flow` instead.
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `signinWithSecret`(`identitySecretKeyHex`: kotlin.String): ChatSession
+
+    /**
+     * Sign up a new account on a homeserver with a raw identity secret key
+     * (hex, 32 bytes).
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `signupWithSecret`(`identitySecretKeyHex`: kotlin.String, `homeserverPublicKey`: kotlin.String, `signupToken`: kotlin.String?): ChatSession
+
+    /**
+     * Start a pubkyauth sign-in flow for the given capabilities
+     * (e.g. `"/pub/paykit/:rw"`). Present `authorization_url()` to the
+     * signer (Pubky Ring), then call `await_approval()`.
+     *
+     * `relay_url` overrides the default public HTTP relay inbox; pass `None`
+     * in production (matching the wasm binding), or a local relay inbox URL
+     * against a testnet.
+     *
+     * Rejects unless the capabilities grant read+write over `/pub/paykit/`
+     * (exact tree, a directory prefix, or `/`).
+     *
+     * This method stays `async` even though the wrapper itself does not
+     * `.await`: `PubkyAuthFlow` construction starts a relay subscription and
+     * requires a Tokio reactor. A sync export panics outside that runtime
+     * (`there is no reactor running`).
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `startAuthFlow`(`capabilities`: kotlin.String, `relayUrl`: kotlin.String?): ChatAuthFlow
+
+    public companion object
+}
+
+
+
+
+/**
+ * Handle to an established Encrypted Link.
+ */
+public interface ChatLinkInterface {
+
+    /**
+     * Close the link and clean up Noise session state. The handle becomes
+     * unusable afterwards.
+     *
+     * Close is spawned onto the Tokio runtime so cancelling this FFI future
+     * cannot drop the `EncryptedLink` before cleanup. A later `close`
+     * resumes or returns the settled result.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `close`()
+
+    /**
+     * Local Paykit receiver path.
+     */
+    public fun `localReceiverPath`(): kotlin.String
+
+    /**
+     * Receive available Private Application Messages in stream order.
+     *
+     * Persist returned messages before replacing a stored link snapshot: the
+     * read checkpoint advances past them.
+     *
+     * The receive is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `receive` resumes or
+     * returns the settled result.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `receivePrivateApplicationMessages`(): List<ChatMessage>
+
+    /**
+     * Counterparty Pubky identity public key (z-base-32).
+     */
+    public fun `recipient`(): kotlin.String
+
+    /**
+     * Counterparty receiver Noise public key (z-base-32).
+     */
+    public fun `remoteNoisePublicKey`(): kotlin.String
+
+    /**
+     * Counterparty Paykit receiver path.
+     */
+    public fun `remoteReceiverPath`(): kotlin.String
+
+    /**
+     * Send one raw JSON Private Application Message. The JSON must carry a
+     * `version` (u8) and `kind` (string) envelope; unknown kinds such as
+     * `chat.message.v0` are allowed by contract.
+     *
+     * Persist the exact JSON before sending when retrying the same message
+     * matters.
+     *
+     * The send is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `send` of the **same**
+     * `raw_json` resumes or returns the settled result. A later `send` of a
+     * **different** payload drains a settled parked result and starts a
+     * fresh send; if a send of another payload is still in flight, this
+     * returns `protocol/parked_result_conflict` so the new message is not
+     * silently dropped.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `sendPrivateApplicationMessageJson`(`rawJson`: kotlin.String)
+
+    /**
+     * Override the automatic send retry limit for transient homeserver
+     * write failures.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `setMaxSendRetries`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `setMaxSendRetries`(`max`: kotlin.UInt)
+
+    /**
+     * Serialize the current link state as an opaque JSON string for
+     * persistence. Take a fresh snapshot after sending/receiving when
+     * persisted counters must catch up. The snapshot contains key material —
+     * store it as a secret.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `EncryptedLinkHandle.snapshot`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `snapshot`(): kotlin.String
+
+    public companion object
+}
+
+
+
+
+/**
+ * Handle to an in-progress Encrypted Link Handshake.
+ */
+public interface ChatLinkHandshakeInterface {
+
+    /**
+     * Advance the handshake by one step.
+     *
+     * Returns `complete = false` when the counterparty has not written their
+     * next message yet (poll again after a delay) and `complete = true` with
+     * the established link when the handshake finished.
+     *
+     * The step is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLinkHandshake`. A later `advance`
+     * resumes the in-flight step or returns its settled result.
+     *
+     * If the step errors, the in-memory handshake is consumed (matching the
+     * paykit-lib ownership model); recover via
+     * `ChatSession.restore_encrypted_link_handshake` with a persisted
+     * snapshot.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `advance`(): ChatHandshakeStep
+
+    /**
+     * Override the automatic write-failure recovery attempt limit.
+     *
+     * Fail-fast while `advance` is in flight, matching wasm
+     * `setMaxRecoveryAttempts`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `setMaxRecoveryAttempts`(`max`: kotlin.UInt)
+
+    /**
+     * Serialize the current handshake state as an opaque JSON string. The
+     * snapshot contains key material — store it as a secret.
+     *
+     * Fail-fast (does not wait for an in-flight `advance`), matching the
+     * wasm `LinkHandshakeHandle.snapshot` semantics.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `snapshot`(): kotlin.String
+
+    public companion object
+}
+
+
+
+
+/**
+ * An authenticated homeserver session for one Pubky identity, retaining the
+ * client it was created with for Encrypted Link outbox operations.
+ */
+public interface ChatSessionInterface {
+
+    /**
+     * Accept a Noise XX Encrypted Link Handshake from a counterparty
+     * (responder role).
+     *
+     * Prefer `probe_inbound_encrypted_link` when the app must distinguish
+     * "no inbound handshake exists" from transport or protocol failure.
+     * Calling `accept_encrypted_link` then `advance` when nothing is inbound
+     * yields a pending empty responder and can deadlock a crossed initiate.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class)
+    public fun `acceptEncryptedLink`(`receiverNoiseSecretKeyHex`: kotlin.String, `senderPublicKey`: kotlin.String, `senderNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): ChatLinkHandshake
+
+    /**
+     * Delete all encrypted stream slots written by the local identity for
+     * one counterparty (recovery before a fresh handshake). Returns the
+     * number of deleted slots.
+     *
+     * The platform caller must minimize its own copies of
+     * `local_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `clearEncryptedLinkOutbox`(`localNoiseSecretKeyHex`: kotlin.String, `remotePublicKey`: kotlin.String, `remoteNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): kotlin.ULong
+
+    /**
+     * Export a compact session token for rehydrating via
+     * `ChatClient.restore_session()` after an app restart.
+     *
+     * Unlike the browser binding (where the credential lives in an HTTP-only
+     * cookie), the returned token is itself the **bearer secret** for this
+     * session. Do not log it; store it in platform secure storage. The
+     * platform caller must minimize its own copies of the returned token.
+     * UniFFI requires a `String` return, so this binding cannot wipe the
+     * caller's copy after the call returns.
+     */
+    public fun `exportSession`(): kotlin.String
+
+    /**
+     * Initiate a Noise XX Encrypted Link Handshake toward a counterparty
+     * (initiator role).
+     *
+     * `receiver_noise_public_key` comes from the counterparty's Receiver
+     * Marker (see `ChatClient.get_receiver_marker`). Drive the returned
+     * handshake with `advance()` until it completes.
+     *
+     * The platform caller must minimize its own copies of
+     * `sender_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class)
+    public fun `initiateEncryptedLink`(`senderNoiseSecretKeyHex`: kotlin.String, `receiverPublicKey`: kotlin.String, `receiverNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): ChatLinkHandshake
+
+    /**
+     * Atomically probe for an inbound Encrypted Link Handshake.
+     *
+     * Performs an explicit public-storage GET of the first inbound handshake
+     * slot before creating a responder. That GET is what distinguishes:
+     * - `NoInbound` — 404/GONE / empty slot (not an error)
+     * - `transport/transport_error` — network or non-404 homeserver failure
+     * - `Pending` / `Established` — inbound consumed via `accept` + one
+     * `advance` (response written when the step proceeds)
+     * - `protocol/handshake_failed` — inbound existed but the protocol step
+     * failed (unrecoverable for this handle)
+     *
+     * Use this instead of blindly `accept`+`advance` when both peers may
+     * initiate at once: `NoInbound` means no inbound was observed at probe
+     * time; when racing is possible, re-probe before initiating. A
+     * `Pending`/`Established` result means this side should be the responder.
+     *
+     * The whole probe is spawned onto the Tokio runtime so cancelling the
+     * FFI future cannot drop a responder that already consumed inbound. A
+     * later call with the same peer key resumes or returns the settled
+     * result.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `probeInboundEncryptedLink`(`receiverNoiseSecretKeyHex`: kotlin.String, `senderPublicKey`: kotlin.String, `senderNoisePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String): ChatProbeResult
+
+    /**
+     * The session owner's public key (z-base-32).
+     */
+    public fun `pubky`(): kotlin.String
+
+    /**
+     * Publish a public Paykit Receiver Marker for the session owner, making
+     * the receiver path discoverable and advertising the receiver Noise
+     * public key used for Encrypted Link path derivation.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `publishReceiverMarker`(`receiverPath`: kotlin.String, `noisePublicKey`: kotlin.String, `capabilities`: ChatReceiverCapabilities)
+
+    /**
+     * Remove the session owner's public Paykit Receiver Marker at a path.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `removeReceiverMarker`(`receiverPath`: kotlin.String)
+
+    /**
+     * Restore an established Encrypted Link from a snapshot JSON string
+     * previously produced by `ChatLink.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `restoreEncryptedLink`(`noiseSecretKeyHex`: kotlin.String, `remotePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String, `snapshotJson`: kotlin.String): ChatLink
+
+    /**
+     * Restore an in-progress handshake from a snapshot JSON string
+     * previously produced by `ChatLinkHandshake.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+    @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
+    public suspend fun `restoreEncryptedLinkHandshake`(`noiseSecretKeyHex`: kotlin.String, `remotePublicKey`: kotlin.String, `localReceiverPath`: kotlin.String, `remoteReceiverPath`: kotlin.String, `snapshotJson`: kotlin.String): ChatLinkHandshake
+
+    public companion object
+}
+
+
+
+
 /**
  * Stateful Paykit SDK runtime handle.
  */
@@ -1044,6 +1423,114 @@ public data class BillingPeriod (
      * RFC3339 UTC end timestamp.
      */
     val `endsAt`: kotlin.String
+) {
+    public companion object
+}
+
+
+
+/**
+ * Result of one Encrypted Link Handshake step.
+ */
+
+public data class ChatHandshakeStep (
+    /**
+     * True when the handshake completed and `link` is set. False means the
+     * counterparty has not written their next message yet; poll `advance`
+     * again after a delay.
+     */
+    val `complete`: kotlin.Boolean,
+    /**
+     * Established Encrypted Link, present exactly when `complete` is true.
+     */
+    val `link`: ChatLink?
+) : Disposable {
+    override fun destroy() {
+        Disposable.destroy(
+            this.`complete`,
+            this.`link`,
+        )
+    }
+    public companion object
+}
+
+
+
+/**
+ * One received Private Application Message.
+ *
+ * Generated platform record descriptions may include the raw JSON, which is
+ * decrypted plaintext. Apps must not log or otherwise stringify this record.
+ */
+@kotlinx.serialization.Serializable
+public data class ChatMessage (
+    /**
+     * Message version from the JSON `version` field, when present and
+     * representable as a `u8`.
+     */
+    val `version`: kotlin.UByte?,
+    /**
+     * Message kind string from the JSON `kind` field, when present.
+     */
+    val `kind`: kotlin.String?,
+    /**
+     * Raw plaintext JSON received over the Encrypted Link.
+     */
+    val `rawJson`: kotlin.String
+) {
+    public companion object
+}
+
+
+
+/**
+ * Public capabilities advertised by a Paykit Receiver Marker.
+ *
+ * A messaging-only receiver typically sets `private_payments` (the Encrypted
+ * Link capability) to true and the payment capabilities to false.
+ */
+@kotlinx.serialization.Serializable
+public data class ChatReceiverCapabilities (
+    /**
+     * Receiver can participate in private Encrypted Link workflows.
+     */
+    val `privatePayments`: kotlin.Boolean,
+    /**
+     * Receiver can send or receive Payment Request messages.
+     */
+    val `paymentRequests`: kotlin.Boolean,
+    /**
+     * Receiver can issue or retrieve Paykit Receipts.
+     */
+    val `receipts`: kotlin.Boolean,
+    /**
+     * Receiver can execute outgoing payments itself.
+     */
+    val `outgoingPayments`: kotlin.Boolean
+) {
+    public companion object
+}
+
+
+
+/**
+ * Public Paykit Receiver Marker for one app/runtime receiver path.
+ */
+@kotlinx.serialization.Serializable
+public data class ChatReceiverMarker (
+    /**
+     * Receiver path this marker belongs to.
+     */
+    val `receiverPath`: kotlin.String,
+    /**
+     * Receiver Noise public key (z-base-32) used for Encrypted Link path
+     * derivation.
+     */
+    val `noisePublicKey`: kotlin.String,
+    /**
+     * Public receiver capabilities.
+     */
+    val `capabilities`: ChatReceiverCapabilities
 ) {
     public companion object
 }
@@ -3637,6 +4124,65 @@ public data class SdkStateBlobSnapshot (
     }
     public companion object
 }
+
+
+
+
+/**
+ * Result of an atomic inbound Encrypted Link Handshake probe.
+ *
+ * Distinguishes "no handshake message exists" from transport and protocol
+ * failures. `NoInbound` is a successful observation, not an error.
+ */
+@kotlinx.serialization.Serializable
+public sealed class ChatProbeResult: Disposable  {
+
+    /**
+     * No inbound handshake message is present on the derived read slot.
+     */
+    @kotlinx.serialization.Serializable
+    public data object NoInbound : ChatProbeResult()  {
+        override fun destroy(): Unit = Unit
+    }
+
+
+
+    /**
+     * An inbound handshake message was consumed and a response written; more
+     * `advance` steps are required.
+     */
+    public data class Pending(
+        /**
+         * Responder handshake that consumed the inbound message.
+         */
+        val `handshake`: ChatLinkHandshake,
+    ) : ChatProbeResult() {
+        override fun destroy() {
+            Disposable.destroy(
+                this.`handshake`,
+            )
+        }
+    }
+
+    /**
+     * The handshake completed in this probe step.
+     */
+    public data class Established(
+        /**
+         * Established Encrypted Link.
+         */
+        val `link`: ChatLink,
+    ) : ChatProbeResult() {
+        override fun destroy() {
+            Disposable.destroy(
+                this.`link`,
+            )
+        }
+    }
+
+}
+
+
 
 
 

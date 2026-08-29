@@ -1291,9 +1291,13 @@ impl FfiChatLink {
     /// unusable afterwards.
     ///
     /// Close is spawned onto the Tokio runtime so cancelling this FFI future
-    /// cannot drop the `EncryptedLink` before cleanup. A later `close`
+    /// cannot drop the `EncryptedLink` before cleanup. A later `close_link`
     /// resumes or returns the settled result.
-    pub async fn close(&self) -> Result<(), PaykitFfiError> {
+    ///
+    /// Named `close_link` (not `close`) because UniFFI's Kotlin codegen adds a
+    /// non-suspend `close()` via `Disposable` to every object, and a suspend
+    /// `close()` here creates conflicting overloads that fail compilation.
+    pub async fn close_link(&self) -> Result<(), PaykitFfiError> {
         loop {
             let mut guard = self.inner.cell.lock().await;
             if let Some(parked) = guard.parked_close.take() {

@@ -298,8 +298,8 @@ async fn test_chat_link_two_peers_exchange_custom_kind_messages() {
         .is_none());
 
     // Closed links reject further use.
-    initiator_link.close().await.unwrap();
-    responder_link.close().await.unwrap();
+    initiator_link.close_link().await.unwrap();
+    responder_link.close_link().await.unwrap();
     let closed = initiator_link
         .send_private_application_message_json(chat_message_json("too late"))
         .await
@@ -308,7 +308,7 @@ async fn test_chat_link_two_peers_exchange_custom_kind_messages() {
         closed.to_string().contains("link is closed"),
         "expected closed-link error, got: {closed}"
     );
-    let already_closed = initiator_link.close().await.unwrap_err();
+    let already_closed = initiator_link.close_link().await.unwrap_err();
     assert!(
         already_closed.to_string().contains("link already closed"),
         "expected already-closed error, got: {already_closed}"
@@ -422,8 +422,8 @@ async fn test_chat_handshake_snapshot_restore_completes_and_exchanges() {
     assert_eq!(received[0].kind.as_deref(), Some(CHAT_KIND));
     assert_eq!(received[0].raw_json, message);
 
-    initiator_link.close().await.unwrap();
-    responder_link.close().await.unwrap();
+    initiator_link.close_link().await.unwrap();
+    responder_link.close_link().await.unwrap();
 }
 
 #[tokio::test]
@@ -448,8 +448,8 @@ async fn test_chat_link_snapshot_restore_established_and_continue() {
     let responder_snapshot = responder_link.snapshot().await.unwrap();
 
     // Simulate an app restart: close the live links, then restore.
-    initiator_link.close().await.unwrap();
-    responder_link.close().await.unwrap();
+    initiator_link.close_link().await.unwrap();
+    responder_link.close_link().await.unwrap();
     let snapshot_after_close = initiator_link.snapshot().await.unwrap_err();
     assert!(
         snapshot_after_close.to_string().contains("link is closed"),
@@ -497,8 +497,8 @@ async fn test_chat_link_snapshot_restore_established_and_continue() {
     assert_eq!(received[0].kind.as_deref(), Some(CHAT_KIND));
     assert_eq!(received[0].raw_json, second);
 
-    restored_initiator.close().await.unwrap();
-    restored_responder.close().await.unwrap();
+    restored_initiator.close_link().await.unwrap();
+    restored_responder.close_link().await.unwrap();
 }
 
 #[tokio::test]
@@ -1049,8 +1049,8 @@ async fn test_send_rejects_missing_kind_and_oversize_payload() {
     );
     assert_safe_chat_error(&oversize_err);
 
-    initiator_link.close().await.unwrap();
-    responder_link.close().await.unwrap();
+    initiator_link.close_link().await.unwrap();
+    responder_link.close_link().await.unwrap();
 }
 
 #[tokio::test]
@@ -1413,6 +1413,6 @@ async fn test_send_different_payload_after_parked_send_is_not_silently_dropped()
         "M2 must be sent after a parked M1; got: {received:?}"
     );
 
-    initiator_link.close().await.unwrap();
-    responder_link.close().await.unwrap();
+    initiator_link.close_link().await.unwrap();
+    responder_link.close_link().await.unwrap();
 }

@@ -406,6 +406,22 @@ private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
+    typealias FfiType = UInt8
+    typealias SwiftType = UInt8
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt8 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: UInt8, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -517,6 +533,1578 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
         writeBytes(&buf, value)
     }
 }
+
+
+
+
+/**
+ * An in-progress pubkyauth flow.
+ */
+public protocol ChatAuthFlowProtocol: AnyObject, Sendable {
+
+    /**
+     * The `pubkyauth:` URL to present to the signer (QR code / deep link).
+     */
+    func authorizationUrl()  -> String
+
+    /**
+     * Wait until the signer approves and return the session. Consumes the
+     * flow; subsequent calls fail.
+     *
+     * The approval wait is spawned onto the Tokio runtime so cancelling this
+     * FFI future cannot drop the underlying `PubkyAuthFlow`. A later call
+     * resumes the in-flight wait or returns its settled result.
+     */
+    func awaitApproval() async throws  -> ChatSession
+
+}
+/**
+ * An in-progress pubkyauth flow.
+ */
+open class ChatAuthFlow: ChatAuthFlowProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_paykit_fn_clone_ffichatauthflow(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_paykit_fn_free_ffichatauthflow(pointer, $0) }
+    }
+
+
+
+
+    /**
+     * The `pubkyauth:` URL to present to the signer (QR code / deep link).
+     */
+open func authorizationUrl() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_method_ffichatauthflow_authorization_url(self.uniffiClonePointer(),$0
+    )
+})
+}
+
+    /**
+     * Wait until the signer approves and return the session. Consumes the
+     * flow; subsequent calls fail.
+     *
+     * The approval wait is spawned onto the Tokio runtime so cancelling this
+     * FFI future cannot drop the underlying `PubkyAuthFlow`. A later call
+     * resumes the in-flight wait or returns its settled result.
+     */
+open func awaitApproval()async throws  -> ChatSession  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatauthflow_await_approval(
+                    self.uniffiClonePointer()
+
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_pointer,
+            completeFunc: ffi_paykit_rust_future_complete_pointer,
+            freeFunc: ffi_paykit_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeChatSession_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatAuthFlow: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = ChatAuthFlow
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatAuthFlow {
+        return ChatAuthFlow(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: ChatAuthFlow) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatAuthFlow {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: ChatAuthFlow, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatAuthFlow_lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatAuthFlow {
+    return try FfiConverterTypeChatAuthFlow.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatAuthFlow_lower(_ value: ChatAuthFlow) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeChatAuthFlow.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Pubky client facade for the chat surface. Construct once and reuse.
+ */
+public protocol ChatClientProtocol: AnyObject, Sendable {
+
+    /**
+     * Fetch a counterparty's public Paykit Receiver Marker, or `None` when
+     * the owner has not published one at that path.
+     */
+    func getReceiverMarker(ownerPublicKey: String, receiverPath: String) async throws  -> ChatReceiverMarker?
+
+    /**
+     * Restore a homeserver session from a token previously produced by
+     * `ChatSession.export_session()`, without a new signer approval.
+     *
+     * Performs a `/session` round-trip to revalidate; it rejects if the
+     * token is malformed, expired, or revoked.
+     *
+     * The platform caller must minimize its own copies of `exported_session`.
+     */
+    func restoreSession(exportedSession: String) async throws  -> ChatSession
+
+    /**
+     * Sign in with a raw identity secret key (hex, 32 bytes).
+     *
+     * Suitable for apps that hold the identity key in platform secure
+     * storage. Apps that keep the identity key in an external signer (Pubky
+     * Ring) should use `start_auth_flow` instead.
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+    func signinWithSecret(identitySecretKeyHex: String) async throws  -> ChatSession
+
+    /**
+     * Sign up a new account on a homeserver with a raw identity secret key
+     * (hex, 32 bytes).
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+    func signupWithSecret(identitySecretKeyHex: String, homeserverPublicKey: String, signupToken: String?) async throws  -> ChatSession
+
+    /**
+     * Start a pubkyauth sign-in flow for the given capabilities
+     * (e.g. `"/pub/paykit/:rw"`). Present `authorization_url()` to the
+     * signer (Pubky Ring), then call `await_approval()`.
+     *
+     * `relay_url` overrides the default public HTTP relay inbox; pass `None`
+     * in production (matching the wasm binding), or a local relay inbox URL
+     * against a testnet.
+     *
+     * Rejects unless the capabilities grant read+write over `/pub/paykit/`
+     * (exact tree, a directory prefix, or `/`).
+     *
+     * This method stays `async` even though the wrapper itself does not
+     * `.await`: `PubkyAuthFlow` construction starts a relay subscription and
+     * requires a Tokio reactor. A sync export panics outside that runtime
+     * (`there is no reactor running`).
+     */
+    func startAuthFlow(capabilities: String, relayUrl: String?) async throws  -> ChatAuthFlow
+
+}
+/**
+ * Pubky client facade for the chat surface. Construct once and reuse.
+ */
+open class ChatClient: ChatClientProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_paykit_fn_clone_ffichatclient(self.pointer, $0) }
+    }
+    /**
+     * Construct with production Pubky network defaults.
+     */
+public convenience init()throws  {
+    let pointer =
+        try rustCallWithError(FfiConverterTypePaykitError_lift) {
+    uniffi_paykit_fn_constructor_ffichatclient_new($0
+    )
+}
+    self.init(unsafeFromRawPointer: pointer)
+}
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_paykit_fn_free_ffichatclient(pointer, $0) }
+    }
+
+
+    /**
+     * Construct with explicit Pubky client configuration (timeouts, local
+     * testnet host).
+     */
+public static func withPubkyClientConfig(pubkyClient: PubkyClientConfig)throws  -> ChatClient  {
+    return try  FfiConverterTypeChatClient_lift(try rustCallWithError(FfiConverterTypePaykitError_lift) {
+    uniffi_paykit_fn_constructor_ffichatclient_with_pubky_client_config(
+        FfiConverterTypePubkyClientConfig_lower(pubkyClient),$0
+    )
+})
+}
+
+
+
+    /**
+     * Fetch a counterparty's public Paykit Receiver Marker, or `None` when
+     * the owner has not published one at that path.
+     */
+open func getReceiverMarker(ownerPublicKey: String, receiverPath: String)async throws  -> ChatReceiverMarker?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatclient_get_receiver_marker(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(ownerPublicKey),FfiConverterString.lower(receiverPath)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_paykit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_paykit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeChatReceiverMarker.lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Restore a homeserver session from a token previously produced by
+     * `ChatSession.export_session()`, without a new signer approval.
+     *
+     * Performs a `/session` round-trip to revalidate; it rejects if the
+     * token is malformed, expired, or revoked.
+     *
+     * The platform caller must minimize its own copies of `exported_session`.
+     */
+open func restoreSession(exportedSession: String)async throws  -> ChatSession  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatclient_restore_session(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(exportedSession)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_pointer,
+            completeFunc: ffi_paykit_rust_future_complete_pointer,
+            freeFunc: ffi_paykit_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeChatSession_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Sign in with a raw identity secret key (hex, 32 bytes).
+     *
+     * Suitable for apps that hold the identity key in platform secure
+     * storage. Apps that keep the identity key in an external signer (Pubky
+     * Ring) should use `start_auth_flow` instead.
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+open func signinWithSecret(identitySecretKeyHex: String)async throws  -> ChatSession  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatclient_signin_with_secret(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(identitySecretKeyHex)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_pointer,
+            completeFunc: ffi_paykit_rust_future_complete_pointer,
+            freeFunc: ffi_paykit_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeChatSession_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Sign up a new account on a homeserver with a raw identity secret key
+     * (hex, 32 bytes).
+     *
+     * The platform caller must minimize its own copies of
+     * `identity_secret_key_hex`.
+     */
+open func signupWithSecret(identitySecretKeyHex: String, homeserverPublicKey: String, signupToken: String?)async throws  -> ChatSession  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatclient_signup_with_secret(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(identitySecretKeyHex),FfiConverterString.lower(homeserverPublicKey),FfiConverterOptionString.lower(signupToken)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_pointer,
+            completeFunc: ffi_paykit_rust_future_complete_pointer,
+            freeFunc: ffi_paykit_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeChatSession_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Start a pubkyauth sign-in flow for the given capabilities
+     * (e.g. `"/pub/paykit/:rw"`). Present `authorization_url()` to the
+     * signer (Pubky Ring), then call `await_approval()`.
+     *
+     * `relay_url` overrides the default public HTTP relay inbox; pass `None`
+     * in production (matching the wasm binding), or a local relay inbox URL
+     * against a testnet.
+     *
+     * Rejects unless the capabilities grant read+write over `/pub/paykit/`
+     * (exact tree, a directory prefix, or `/`).
+     *
+     * This method stays `async` even though the wrapper itself does not
+     * `.await`: `PubkyAuthFlow` construction starts a relay subscription and
+     * requires a Tokio reactor. A sync export panics outside that runtime
+     * (`there is no reactor running`).
+     */
+open func startAuthFlow(capabilities: String, relayUrl: String?)async throws  -> ChatAuthFlow  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatclient_start_auth_flow(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(capabilities),FfiConverterOptionString.lower(relayUrl)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_pointer,
+            completeFunc: ffi_paykit_rust_future_complete_pointer,
+            freeFunc: ffi_paykit_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeChatAuthFlow_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatClient: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = ChatClient
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatClient {
+        return ChatClient(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: ChatClient) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatClient {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: ChatClient, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatClient_lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatClient {
+    return try FfiConverterTypeChatClient.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatClient_lower(_ value: ChatClient) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeChatClient.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Handle to an established Encrypted Link.
+ */
+public protocol ChatLinkProtocol: AnyObject, Sendable {
+
+    /**
+     * Close the link and clean up Noise session state. The handle becomes
+     * unusable afterwards.
+     *
+     * Close is spawned onto the Tokio runtime so cancelling this FFI future
+     * cannot drop the `EncryptedLink` before cleanup. A later `close`
+     * resumes or returns the settled result.
+     */
+    func close() async throws
+
+    /**
+     * Local Paykit receiver path.
+     */
+    func localReceiverPath()  -> String
+
+    /**
+     * Receive available Private Application Messages in stream order.
+     *
+     * Persist returned messages before replacing a stored link snapshot: the
+     * read checkpoint advances past them.
+     *
+     * The receive is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `receive` resumes or
+     * returns the settled result.
+     */
+    func receivePrivateApplicationMessages() async throws  -> [ChatMessage]
+
+    /**
+     * Counterparty Pubky identity public key (z-base-32).
+     */
+    func recipient()  -> String
+
+    /**
+     * Counterparty receiver Noise public key (z-base-32).
+     */
+    func remoteNoisePublicKey()  -> String
+
+    /**
+     * Counterparty Paykit receiver path.
+     */
+    func remoteReceiverPath()  -> String
+
+    /**
+     * Send one raw JSON Private Application Message. The JSON must carry a
+     * `version` (u8) and `kind` (string) envelope; unknown kinds such as
+     * `chat.message.v0` are allowed by contract.
+     *
+     * Persist the exact JSON before sending when retrying the same message
+     * matters.
+     *
+     * The send is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `send` of the **same**
+     * `raw_json` resumes or returns the settled result. A later `send` of a
+     * **different** payload drains a settled parked result and starts a
+     * fresh send; if a send of another payload is still in flight, this
+     * returns `protocol/parked_result_conflict` so the new message is not
+     * silently dropped.
+     */
+    func sendPrivateApplicationMessageJson(rawJson: String) async throws
+
+    /**
+     * Override the automatic send retry limit for transient homeserver
+     * write failures.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `setMaxSendRetries`.
+     */
+    func setMaxSendRetries(max: UInt32) async throws
+
+    /**
+     * Serialize the current link state as an opaque JSON string for
+     * persistence. Take a fresh snapshot after sending/receiving when
+     * persisted counters must catch up. The snapshot contains key material —
+     * store it as a secret.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `EncryptedLinkHandle.snapshot`.
+     */
+    func snapshot() async throws  -> String
+
+}
+/**
+ * Handle to an established Encrypted Link.
+ */
+open class ChatLink: ChatLinkProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_paykit_fn_clone_ffichatlink(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_paykit_fn_free_ffichatlink(pointer, $0) }
+    }
+
+
+
+
+    /**
+     * Close the link and clean up Noise session state. The handle becomes
+     * unusable afterwards.
+     *
+     * Close is spawned onto the Tokio runtime so cancelling this FFI future
+     * cannot drop the `EncryptedLink` before cleanup. A later `close`
+     * resumes or returns the settled result.
+     */
+open func close()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlink_close(
+                    self.uniffiClonePointer()
+
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_void,
+            completeFunc: ffi_paykit_rust_future_complete_void,
+            freeFunc: ffi_paykit_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Local Paykit receiver path.
+     */
+open func localReceiverPath() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_method_ffichatlink_local_receiver_path(self.uniffiClonePointer(),$0
+    )
+})
+}
+
+    /**
+     * Receive available Private Application Messages in stream order.
+     *
+     * Persist returned messages before replacing a stored link snapshot: the
+     * read checkpoint advances past them.
+     *
+     * The receive is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `receive` resumes or
+     * returns the settled result.
+     */
+open func receivePrivateApplicationMessages()async throws  -> [ChatMessage]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlink_receive_private_application_messages(
+                    self.uniffiClonePointer()
+
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_paykit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_paykit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeChatMessage.lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Counterparty Pubky identity public key (z-base-32).
+     */
+open func recipient() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_method_ffichatlink_recipient(self.uniffiClonePointer(),$0
+    )
+})
+}
+
+    /**
+     * Counterparty receiver Noise public key (z-base-32).
+     */
+open func remoteNoisePublicKey() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_method_ffichatlink_remote_noise_public_key(self.uniffiClonePointer(),$0
+    )
+})
+}
+
+    /**
+     * Counterparty Paykit receiver path.
+     */
+open func remoteReceiverPath() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_method_ffichatlink_remote_receiver_path(self.uniffiClonePointer(),$0
+    )
+})
+}
+
+    /**
+     * Send one raw JSON Private Application Message. The JSON must carry a
+     * `version` (u8) and `kind` (string) envelope; unknown kinds such as
+     * `chat.message.v0` are allowed by contract.
+     *
+     * Persist the exact JSON before sending when retrying the same message
+     * matters.
+     *
+     * The send is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLink`. A later `send` of the **same**
+     * `raw_json` resumes or returns the settled result. A later `send` of a
+     * **different** payload drains a settled parked result and starts a
+     * fresh send; if a send of another payload is still in flight, this
+     * returns `protocol/parked_result_conflict` so the new message is not
+     * silently dropped.
+     */
+open func sendPrivateApplicationMessageJson(rawJson: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlink_send_private_application_message_json(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(rawJson)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_void,
+            completeFunc: ffi_paykit_rust_future_complete_void,
+            freeFunc: ffi_paykit_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Override the automatic send retry limit for transient homeserver
+     * write failures.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `setMaxSendRetries`.
+     */
+open func setMaxSendRetries(max: UInt32)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlink_set_max_send_retries(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(max)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_void,
+            completeFunc: ffi_paykit_rust_future_complete_void,
+            freeFunc: ffi_paykit_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Serialize the current link state as an opaque JSON string for
+     * persistence. Take a fresh snapshot after sending/receiving when
+     * persisted counters must catch up. The snapshot contains key material —
+     * store it as a secret.
+     *
+     * Fail-fast while send/receive/close is in flight, matching wasm
+     * `EncryptedLinkHandle.snapshot`.
+     */
+open func snapshot()async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlink_snapshot(
+                    self.uniffiClonePointer()
+
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_paykit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_paykit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatLink: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = ChatLink
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatLink {
+        return ChatLink(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: ChatLink) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatLink {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: ChatLink, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatLink_lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatLink {
+    return try FfiConverterTypeChatLink.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatLink_lower(_ value: ChatLink) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeChatLink.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Handle to an in-progress Encrypted Link Handshake.
+ */
+public protocol ChatLinkHandshakeProtocol: AnyObject, Sendable {
+
+    /**
+     * Advance the handshake by one step.
+     *
+     * Returns `complete = false` when the counterparty has not written their
+     * next message yet (poll again after a delay) and `complete = true` with
+     * the established link when the handshake finished.
+     *
+     * The step is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLinkHandshake`. A later `advance`
+     * resumes the in-flight step or returns its settled result.
+     *
+     * If the step errors, the in-memory handshake is consumed (matching the
+     * paykit-lib ownership model); recover via
+     * `ChatSession.restore_encrypted_link_handshake` with a persisted
+     * snapshot.
+     */
+    func advance() async throws  -> ChatHandshakeStep
+
+    /**
+     * Override the automatic write-failure recovery attempt limit.
+     *
+     * Fail-fast while `advance` is in flight, matching wasm
+     * `setMaxRecoveryAttempts`.
+     */
+    func setMaxRecoveryAttempts(max: UInt32) async throws
+
+    /**
+     * Serialize the current handshake state as an opaque JSON string. The
+     * snapshot contains key material — store it as a secret.
+     *
+     * Fail-fast (does not wait for an in-flight `advance`), matching the
+     * wasm `LinkHandshakeHandle.snapshot` semantics.
+     */
+    func snapshot() async throws  -> String
+
+}
+/**
+ * Handle to an in-progress Encrypted Link Handshake.
+ */
+open class ChatLinkHandshake: ChatLinkHandshakeProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_paykit_fn_clone_ffichatlinkhandshake(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_paykit_fn_free_ffichatlinkhandshake(pointer, $0) }
+    }
+
+
+
+
+    /**
+     * Advance the handshake by one step.
+     *
+     * Returns `complete = false` when the counterparty has not written their
+     * next message yet (poll again after a delay) and `complete = true` with
+     * the established link when the handshake finished.
+     *
+     * The step is spawned onto the Tokio runtime so cancelling this FFI
+     * future cannot drop the `EncryptedLinkHandshake`. A later `advance`
+     * resumes the in-flight step or returns its settled result.
+     *
+     * If the step errors, the in-memory handshake is consumed (matching the
+     * paykit-lib ownership model); recover via
+     * `ChatSession.restore_encrypted_link_handshake` with a persisted
+     * snapshot.
+     */
+open func advance()async throws  -> ChatHandshakeStep  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlinkhandshake_advance(
+                    self.uniffiClonePointer()
+
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_paykit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_paykit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeChatHandshakeStep_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Override the automatic write-failure recovery attempt limit.
+     *
+     * Fail-fast while `advance` is in flight, matching wasm
+     * `setMaxRecoveryAttempts`.
+     */
+open func setMaxRecoveryAttempts(max: UInt32)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlinkhandshake_set_max_recovery_attempts(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(max)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_void,
+            completeFunc: ffi_paykit_rust_future_complete_void,
+            freeFunc: ffi_paykit_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Serialize the current handshake state as an opaque JSON string. The
+     * snapshot contains key material — store it as a secret.
+     *
+     * Fail-fast (does not wait for an in-flight `advance`), matching the
+     * wasm `LinkHandshakeHandle.snapshot` semantics.
+     */
+open func snapshot()async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatlinkhandshake_snapshot(
+                    self.uniffiClonePointer()
+
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_paykit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_paykit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatLinkHandshake: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = ChatLinkHandshake
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatLinkHandshake {
+        return ChatLinkHandshake(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: ChatLinkHandshake) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatLinkHandshake {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: ChatLinkHandshake, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatLinkHandshake_lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatLinkHandshake {
+    return try FfiConverterTypeChatLinkHandshake.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatLinkHandshake_lower(_ value: ChatLinkHandshake) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeChatLinkHandshake.lower(value)
+}
+
+
+
+
+
+
+/**
+ * An authenticated homeserver session for one Pubky identity, retaining the
+ * client it was created with for Encrypted Link outbox operations.
+ */
+public protocol ChatSessionProtocol: AnyObject, Sendable {
+
+    /**
+     * Accept a Noise XX Encrypted Link Handshake from a counterparty
+     * (responder role).
+     *
+     * Prefer `probe_inbound_encrypted_link` when the app must distinguish
+     * "no inbound handshake exists" from transport or protocol failure.
+     * Calling `accept_encrypted_link` then `advance` when nothing is inbound
+     * yields a pending empty responder and can deadlock a crossed initiate.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+    func acceptEncryptedLink(receiverNoiseSecretKeyHex: String, senderPublicKey: String, senderNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String) throws  -> ChatLinkHandshake
+
+    /**
+     * Delete all encrypted stream slots written by the local identity for
+     * one counterparty (recovery before a fresh handshake). Returns the
+     * number of deleted slots.
+     *
+     * The platform caller must minimize its own copies of
+     * `local_noise_secret_key_hex`.
+     */
+    func clearEncryptedLinkOutbox(localNoiseSecretKeyHex: String, remotePublicKey: String, remoteNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String) async throws  -> UInt64
+
+    /**
+     * Export a compact session token for rehydrating via
+     * `ChatClient.restore_session()` after an app restart.
+     *
+     * Unlike the browser binding (where the credential lives in an HTTP-only
+     * cookie), the returned token is itself the **bearer secret** for this
+     * session. Do not log it; store it in platform secure storage. The
+     * platform caller must minimize its own copies of the returned token.
+     * UniFFI requires a `String` return, so this binding cannot wipe the
+     * caller's copy after the call returns.
+     */
+    func exportSession()  -> String
+
+    /**
+     * Initiate a Noise XX Encrypted Link Handshake toward a counterparty
+     * (initiator role).
+     *
+     * `receiver_noise_public_key` comes from the counterparty's Receiver
+     * Marker (see `ChatClient.get_receiver_marker`). Drive the returned
+     * handshake with `advance()` until it completes.
+     *
+     * The platform caller must minimize its own copies of
+     * `sender_noise_secret_key_hex`.
+     */
+    func initiateEncryptedLink(senderNoiseSecretKeyHex: String, receiverPublicKey: String, receiverNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String) throws  -> ChatLinkHandshake
+
+    /**
+     * Atomically probe for an inbound Encrypted Link Handshake.
+     *
+     * Performs an explicit public-storage GET of the first inbound handshake
+     * slot before creating a responder. That GET is what distinguishes:
+     * - `NoInbound` — 404/GONE / empty slot (not an error)
+     * - `transport/transport_error` — network or non-404 homeserver failure
+     * - `Pending` / `Established` — inbound consumed via `accept` + one
+     * `advance` (response written when the step proceeds)
+     * - `protocol/handshake_failed` — inbound existed but the protocol step
+     * failed (unrecoverable for this handle)
+     *
+     * Use this instead of blindly `accept`+`advance` when both peers may
+     * initiate at once: `NoInbound` means no inbound was observed at probe
+     * time; when racing is possible, re-probe before initiating. A
+     * `Pending`/`Established` result means this side should be the responder.
+     *
+     * The whole probe is spawned onto the Tokio runtime so cancelling the
+     * FFI future cannot drop a responder that already consumed inbound. A
+     * later call with the same peer key resumes or returns the settled
+     * result.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+    func probeInboundEncryptedLink(receiverNoiseSecretKeyHex: String, senderPublicKey: String, senderNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String) async throws  -> ChatProbeResult
+
+    /**
+     * The session owner's public key (z-base-32).
+     */
+    func pubky()  -> String
+
+    /**
+     * Publish a public Paykit Receiver Marker for the session owner, making
+     * the receiver path discoverable and advertising the receiver Noise
+     * public key used for Encrypted Link path derivation.
+     */
+    func publishReceiverMarker(receiverPath: String, noisePublicKey: String, capabilities: ChatReceiverCapabilities) async throws
+
+    /**
+     * Remove the session owner's public Paykit Receiver Marker at a path.
+     */
+    func removeReceiverMarker(receiverPath: String) async throws
+
+    /**
+     * Restore an established Encrypted Link from a snapshot JSON string
+     * previously produced by `ChatLink.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+    func restoreEncryptedLink(noiseSecretKeyHex: String, remotePublicKey: String, localReceiverPath: String, remoteReceiverPath: String, snapshotJson: String) async throws  -> ChatLink
+
+    /**
+     * Restore an in-progress handshake from a snapshot JSON string
+     * previously produced by `ChatLinkHandshake.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+    func restoreEncryptedLinkHandshake(noiseSecretKeyHex: String, remotePublicKey: String, localReceiverPath: String, remoteReceiverPath: String, snapshotJson: String) async throws  -> ChatLinkHandshake
+
+}
+/**
+ * An authenticated homeserver session for one Pubky identity, retaining the
+ * client it was created with for Encrypted Link outbox operations.
+ */
+open class ChatSession: ChatSessionProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_paykit_fn_clone_ffichatsession(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_paykit_fn_free_ffichatsession(pointer, $0) }
+    }
+
+
+
+
+    /**
+     * Accept a Noise XX Encrypted Link Handshake from a counterparty
+     * (responder role).
+     *
+     * Prefer `probe_inbound_encrypted_link` when the app must distinguish
+     * "no inbound handshake exists" from transport or protocol failure.
+     * Calling `accept_encrypted_link` then `advance` when nothing is inbound
+     * yields a pending empty responder and can deadlock a crossed initiate.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+open func acceptEncryptedLink(receiverNoiseSecretKeyHex: String, senderPublicKey: String, senderNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String)throws  -> ChatLinkHandshake  {
+    return try  FfiConverterTypeChatLinkHandshake_lift(try rustCallWithError(FfiConverterTypePaykitError_lift) {
+    uniffi_paykit_fn_method_ffichatsession_accept_encrypted_link(self.uniffiClonePointer(),
+        FfiConverterString.lower(receiverNoiseSecretKeyHex),
+        FfiConverterString.lower(senderPublicKey),
+        FfiConverterString.lower(senderNoisePublicKey),
+        FfiConverterString.lower(localReceiverPath),
+        FfiConverterString.lower(remoteReceiverPath),$0
+    )
+})
+}
+
+    /**
+     * Delete all encrypted stream slots written by the local identity for
+     * one counterparty (recovery before a fresh handshake). Returns the
+     * number of deleted slots.
+     *
+     * The platform caller must minimize its own copies of
+     * `local_noise_secret_key_hex`.
+     */
+open func clearEncryptedLinkOutbox(localNoiseSecretKeyHex: String, remotePublicKey: String, remoteNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String)async throws  -> UInt64  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatsession_clear_encrypted_link_outbox(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(localNoiseSecretKeyHex),FfiConverterString.lower(remotePublicKey),FfiConverterString.lower(remoteNoisePublicKey),FfiConverterString.lower(localReceiverPath),FfiConverterString.lower(remoteReceiverPath)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_u64,
+            completeFunc: ffi_paykit_rust_future_complete_u64,
+            freeFunc: ffi_paykit_rust_future_free_u64,
+            liftFunc: FfiConverterUInt64.lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Export a compact session token for rehydrating via
+     * `ChatClient.restore_session()` after an app restart.
+     *
+     * Unlike the browser binding (where the credential lives in an HTTP-only
+     * cookie), the returned token is itself the **bearer secret** for this
+     * session. Do not log it; store it in platform secure storage. The
+     * platform caller must minimize its own copies of the returned token.
+     * UniFFI requires a `String` return, so this binding cannot wipe the
+     * caller's copy after the call returns.
+     */
+open func exportSession() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_method_ffichatsession_export_session(self.uniffiClonePointer(),$0
+    )
+})
+}
+
+    /**
+     * Initiate a Noise XX Encrypted Link Handshake toward a counterparty
+     * (initiator role).
+     *
+     * `receiver_noise_public_key` comes from the counterparty's Receiver
+     * Marker (see `ChatClient.get_receiver_marker`). Drive the returned
+     * handshake with `advance()` until it completes.
+     *
+     * The platform caller must minimize its own copies of
+     * `sender_noise_secret_key_hex`.
+     */
+open func initiateEncryptedLink(senderNoiseSecretKeyHex: String, receiverPublicKey: String, receiverNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String)throws  -> ChatLinkHandshake  {
+    return try  FfiConverterTypeChatLinkHandshake_lift(try rustCallWithError(FfiConverterTypePaykitError_lift) {
+    uniffi_paykit_fn_method_ffichatsession_initiate_encrypted_link(self.uniffiClonePointer(),
+        FfiConverterString.lower(senderNoiseSecretKeyHex),
+        FfiConverterString.lower(receiverPublicKey),
+        FfiConverterString.lower(receiverNoisePublicKey),
+        FfiConverterString.lower(localReceiverPath),
+        FfiConverterString.lower(remoteReceiverPath),$0
+    )
+})
+}
+
+    /**
+     * Atomically probe for an inbound Encrypted Link Handshake.
+     *
+     * Performs an explicit public-storage GET of the first inbound handshake
+     * slot before creating a responder. That GET is what distinguishes:
+     * - `NoInbound` — 404/GONE / empty slot (not an error)
+     * - `transport/transport_error` — network or non-404 homeserver failure
+     * - `Pending` / `Established` — inbound consumed via `accept` + one
+     * `advance` (response written when the step proceeds)
+     * - `protocol/handshake_failed` — inbound existed but the protocol step
+     * failed (unrecoverable for this handle)
+     *
+     * Use this instead of blindly `accept`+`advance` when both peers may
+     * initiate at once: `NoInbound` means no inbound was observed at probe
+     * time; when racing is possible, re-probe before initiating. A
+     * `Pending`/`Established` result means this side should be the responder.
+     *
+     * The whole probe is spawned onto the Tokio runtime so cancelling the
+     * FFI future cannot drop a responder that already consumed inbound. A
+     * later call with the same peer key resumes or returns the settled
+     * result.
+     *
+     * The platform caller must minimize its own copies of
+     * `receiver_noise_secret_key_hex`.
+     */
+open func probeInboundEncryptedLink(receiverNoiseSecretKeyHex: String, senderPublicKey: String, senderNoisePublicKey: String, localReceiverPath: String, remoteReceiverPath: String)async throws  -> ChatProbeResult  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatsession_probe_inbound_encrypted_link(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(receiverNoiseSecretKeyHex),FfiConverterString.lower(senderPublicKey),FfiConverterString.lower(senderNoisePublicKey),FfiConverterString.lower(localReceiverPath),FfiConverterString.lower(remoteReceiverPath)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_rust_buffer,
+            completeFunc: ffi_paykit_rust_future_complete_rust_buffer,
+            freeFunc: ffi_paykit_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeChatProbeResult_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * The session owner's public key (z-base-32).
+     */
+open func pubky() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_method_ffichatsession_pubky(self.uniffiClonePointer(),$0
+    )
+})
+}
+
+    /**
+     * Publish a public Paykit Receiver Marker for the session owner, making
+     * the receiver path discoverable and advertising the receiver Noise
+     * public key used for Encrypted Link path derivation.
+     */
+open func publishReceiverMarker(receiverPath: String, noisePublicKey: String, capabilities: ChatReceiverCapabilities)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatsession_publish_receiver_marker(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(receiverPath),FfiConverterString.lower(noisePublicKey),FfiConverterTypeChatReceiverCapabilities_lower(capabilities)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_void,
+            completeFunc: ffi_paykit_rust_future_complete_void,
+            freeFunc: ffi_paykit_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Remove the session owner's public Paykit Receiver Marker at a path.
+     */
+open func removeReceiverMarker(receiverPath: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatsession_remove_receiver_marker(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(receiverPath)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_void,
+            completeFunc: ffi_paykit_rust_future_complete_void,
+            freeFunc: ffi_paykit_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Restore an established Encrypted Link from a snapshot JSON string
+     * previously produced by `ChatLink.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+open func restoreEncryptedLink(noiseSecretKeyHex: String, remotePublicKey: String, localReceiverPath: String, remoteReceiverPath: String, snapshotJson: String)async throws  -> ChatLink  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatsession_restore_encrypted_link(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(noiseSecretKeyHex),FfiConverterString.lower(remotePublicKey),FfiConverterString.lower(localReceiverPath),FfiConverterString.lower(remoteReceiverPath),FfiConverterString.lower(snapshotJson)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_pointer,
+            completeFunc: ffi_paykit_rust_future_complete_pointer,
+            freeFunc: ffi_paykit_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeChatLink_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+    /**
+     * Restore an in-progress handshake from a snapshot JSON string
+     * previously produced by `ChatLinkHandshake.snapshot()`.
+     *
+     * The platform caller must minimize its own copies of
+     * `noise_secret_key_hex`.
+     */
+open func restoreEncryptedLinkHandshake(noiseSecretKeyHex: String, remotePublicKey: String, localReceiverPath: String, remoteReceiverPath: String, snapshotJson: String)async throws  -> ChatLinkHandshake  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_paykit_fn_method_ffichatsession_restore_encrypted_link_handshake(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(noiseSecretKeyHex),FfiConverterString.lower(remotePublicKey),FfiConverterString.lower(localReceiverPath),FfiConverterString.lower(remoteReceiverPath),FfiConverterString.lower(snapshotJson)
+                )
+            },
+            pollFunc: ffi_paykit_rust_future_poll_pointer,
+            completeFunc: ffi_paykit_rust_future_complete_pointer,
+            freeFunc: ffi_paykit_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeChatLinkHandshake_lift,
+            errorHandler: FfiConverterTypePaykitError_lift
+        )
+}
+
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatSession: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = ChatSession
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatSession {
+        return ChatSession(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: ChatSession) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatSession {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: ChatSession, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatSession_lift(_ pointer: UnsafeMutableRawPointer) throws -> ChatSession {
+    return try FfiConverterTypeChatSession.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatSession_lower(_ value: ChatSession) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeChatSession.lower(value)
+}
+
+
 
 
 
@@ -5963,6 +7551,404 @@ public func FfiConverterTypeBillingPeriod_lift(_ buf: RustBuffer) throws -> Bill
 #endif
 public func FfiConverterTypeBillingPeriod_lower(_ value: BillingPeriod) -> RustBuffer {
     return FfiConverterTypeBillingPeriod.lower(value)
+}
+
+
+/**
+ * Result of one Encrypted Link Handshake step.
+ */
+public struct ChatHandshakeStep {
+    /**
+     * True when the handshake completed and `link` is set. False means the
+     * counterparty has not written their next message yet; poll `advance`
+     * again after a delay.
+     */
+    public var complete: Bool
+    /**
+     * Established Encrypted Link, present exactly when `complete` is true.
+     */
+    public var link: ChatLink?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * True when the handshake completed and `link` is set. False means the
+         * counterparty has not written their next message yet; poll `advance`
+         * again after a delay.
+         */complete: Bool,
+        /**
+         * Established Encrypted Link, present exactly when `complete` is true.
+         */link: ChatLink?) {
+        self.complete = complete
+        self.link = link
+    }
+}
+
+#if compiler(>=6)
+extension ChatHandshakeStep: Sendable {}
+#endif
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatHandshakeStep: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatHandshakeStep {
+        return
+            try ChatHandshakeStep(
+                complete: FfiConverterBool.read(from: &buf),
+                link: FfiConverterOptionTypeChatLink.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ChatHandshakeStep, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.complete, into: &buf)
+        FfiConverterOptionTypeChatLink.write(value.link, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatHandshakeStep_lift(_ buf: RustBuffer) throws -> ChatHandshakeStep {
+    return try FfiConverterTypeChatHandshakeStep.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatHandshakeStep_lower(_ value: ChatHandshakeStep) -> RustBuffer {
+    return FfiConverterTypeChatHandshakeStep.lower(value)
+}
+
+
+/**
+ * One received Private Application Message.
+ *
+ * Generated platform record descriptions may include the raw JSON, which is
+ * decrypted plaintext. Apps must not log or otherwise stringify this record.
+ */
+public struct ChatMessage {
+    /**
+     * Message version from the JSON `version` field, when present and
+     * representable as a `u8`.
+     */
+    public var version: UInt8?
+    /**
+     * Message kind string from the JSON `kind` field, when present.
+     */
+    public var kind: String?
+    /**
+     * Raw plaintext JSON received over the Encrypted Link.
+     */
+    public var rawJson: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Message version from the JSON `version` field, when present and
+         * representable as a `u8`.
+         */version: UInt8?,
+        /**
+         * Message kind string from the JSON `kind` field, when present.
+         */kind: String?,
+        /**
+         * Raw plaintext JSON received over the Encrypted Link.
+         */rawJson: String) {
+        self.version = version
+        self.kind = kind
+        self.rawJson = rawJson
+    }
+}
+
+#if compiler(>=6)
+extension ChatMessage: Sendable {}
+#endif
+
+
+extension ChatMessage: Equatable, Hashable {
+    public static func ==(lhs: ChatMessage, rhs: ChatMessage) -> Bool {
+        if lhs.version != rhs.version {
+            return false
+        }
+        if lhs.kind != rhs.kind {
+            return false
+        }
+        if lhs.rawJson != rhs.rawJson {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(version)
+        hasher.combine(kind)
+        hasher.combine(rawJson)
+    }
+}
+
+extension ChatMessage: Codable {}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatMessage: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatMessage {
+        return
+            try ChatMessage(
+                version: FfiConverterOptionUInt8.read(from: &buf),
+                kind: FfiConverterOptionString.read(from: &buf),
+                rawJson: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ChatMessage, into buf: inout [UInt8]) {
+        FfiConverterOptionUInt8.write(value.version, into: &buf)
+        FfiConverterOptionString.write(value.kind, into: &buf)
+        FfiConverterString.write(value.rawJson, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatMessage_lift(_ buf: RustBuffer) throws -> ChatMessage {
+    return try FfiConverterTypeChatMessage.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatMessage_lower(_ value: ChatMessage) -> RustBuffer {
+    return FfiConverterTypeChatMessage.lower(value)
+}
+
+
+/**
+ * Public capabilities advertised by a Paykit Receiver Marker.
+ *
+ * A messaging-only receiver typically sets `private_payments` (the Encrypted
+ * Link capability) to true and the payment capabilities to false.
+ */
+public struct ChatReceiverCapabilities {
+    /**
+     * Receiver can participate in private Encrypted Link workflows.
+     */
+    public var privatePayments: Bool
+    /**
+     * Receiver can send or receive Payment Request messages.
+     */
+    public var paymentRequests: Bool
+    /**
+     * Receiver can issue or retrieve Paykit Receipts.
+     */
+    public var receipts: Bool
+    /**
+     * Receiver can execute outgoing payments itself.
+     */
+    public var outgoingPayments: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Receiver can participate in private Encrypted Link workflows.
+         */privatePayments: Bool,
+        /**
+         * Receiver can send or receive Payment Request messages.
+         */paymentRequests: Bool,
+        /**
+         * Receiver can issue or retrieve Paykit Receipts.
+         */receipts: Bool,
+        /**
+         * Receiver can execute outgoing payments itself.
+         */outgoingPayments: Bool) {
+        self.privatePayments = privatePayments
+        self.paymentRequests = paymentRequests
+        self.receipts = receipts
+        self.outgoingPayments = outgoingPayments
+    }
+}
+
+#if compiler(>=6)
+extension ChatReceiverCapabilities: Sendable {}
+#endif
+
+
+extension ChatReceiverCapabilities: Equatable, Hashable {
+    public static func ==(lhs: ChatReceiverCapabilities, rhs: ChatReceiverCapabilities) -> Bool {
+        if lhs.privatePayments != rhs.privatePayments {
+            return false
+        }
+        if lhs.paymentRequests != rhs.paymentRequests {
+            return false
+        }
+        if lhs.receipts != rhs.receipts {
+            return false
+        }
+        if lhs.outgoingPayments != rhs.outgoingPayments {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(privatePayments)
+        hasher.combine(paymentRequests)
+        hasher.combine(receipts)
+        hasher.combine(outgoingPayments)
+    }
+}
+
+extension ChatReceiverCapabilities: Codable {}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatReceiverCapabilities: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatReceiverCapabilities {
+        return
+            try ChatReceiverCapabilities(
+                privatePayments: FfiConverterBool.read(from: &buf),
+                paymentRequests: FfiConverterBool.read(from: &buf),
+                receipts: FfiConverterBool.read(from: &buf),
+                outgoingPayments: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ChatReceiverCapabilities, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.privatePayments, into: &buf)
+        FfiConverterBool.write(value.paymentRequests, into: &buf)
+        FfiConverterBool.write(value.receipts, into: &buf)
+        FfiConverterBool.write(value.outgoingPayments, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatReceiverCapabilities_lift(_ buf: RustBuffer) throws -> ChatReceiverCapabilities {
+    return try FfiConverterTypeChatReceiverCapabilities.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatReceiverCapabilities_lower(_ value: ChatReceiverCapabilities) -> RustBuffer {
+    return FfiConverterTypeChatReceiverCapabilities.lower(value)
+}
+
+
+/**
+ * Public Paykit Receiver Marker for one app/runtime receiver path.
+ */
+public struct ChatReceiverMarker {
+    /**
+     * Receiver path this marker belongs to.
+     */
+    public var receiverPath: String
+    /**
+     * Receiver Noise public key (z-base-32) used for Encrypted Link path
+     * derivation.
+     */
+    public var noisePublicKey: String
+    /**
+     * Public receiver capabilities.
+     */
+    public var capabilities: ChatReceiverCapabilities
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Receiver path this marker belongs to.
+         */receiverPath: String,
+        /**
+         * Receiver Noise public key (z-base-32) used for Encrypted Link path
+         * derivation.
+         */noisePublicKey: String,
+        /**
+         * Public receiver capabilities.
+         */capabilities: ChatReceiverCapabilities) {
+        self.receiverPath = receiverPath
+        self.noisePublicKey = noisePublicKey
+        self.capabilities = capabilities
+    }
+}
+
+#if compiler(>=6)
+extension ChatReceiverMarker: Sendable {}
+#endif
+
+
+extension ChatReceiverMarker: Equatable, Hashable {
+    public static func ==(lhs: ChatReceiverMarker, rhs: ChatReceiverMarker) -> Bool {
+        if lhs.receiverPath != rhs.receiverPath {
+            return false
+        }
+        if lhs.noisePublicKey != rhs.noisePublicKey {
+            return false
+        }
+        if lhs.capabilities != rhs.capabilities {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(receiverPath)
+        hasher.combine(noisePublicKey)
+        hasher.combine(capabilities)
+    }
+}
+
+extension ChatReceiverMarker: Codable {}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatReceiverMarker: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatReceiverMarker {
+        return
+            try ChatReceiverMarker(
+                receiverPath: FfiConverterString.read(from: &buf),
+                noisePublicKey: FfiConverterString.read(from: &buf),
+                capabilities: FfiConverterTypeChatReceiverCapabilities.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ChatReceiverMarker, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.receiverPath, into: &buf)
+        FfiConverterString.write(value.noisePublicKey, into: &buf)
+        FfiConverterTypeChatReceiverCapabilities.write(value.capabilities, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatReceiverMarker_lift(_ buf: RustBuffer) throws -> ChatReceiverMarker {
+    return try FfiConverterTypeChatReceiverMarker.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatReceiverMarker_lower(_ value: ChatReceiverMarker) -> RustBuffer {
+    return FfiConverterTypeChatReceiverMarker.lower(value)
 }
 
 
@@ -13900,6 +15886,108 @@ public func FfiConverterTypeSdkStateBlobSnapshot_lower(_ value: SdkStateBlobSnap
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Result of an atomic inbound Encrypted Link Handshake probe.
+ *
+ * Distinguishes "no handshake message exists" from transport and protocol
+ * failures. `NoInbound` is a successful observation, not an error.
+ */
+
+public enum ChatProbeResult {
+
+    /**
+     * No inbound handshake message is present on the derived read slot.
+     */
+    case noInbound
+    /**
+     * An inbound handshake message was consumed and a response written; more
+     * `advance` steps are required.
+     */
+    case pending(
+        /**
+         * Responder handshake that consumed the inbound message.
+         */handshake: ChatLinkHandshake
+    )
+    /**
+     * The handshake completed in this probe step.
+     */
+    case established(
+        /**
+         * Established Encrypted Link.
+         */link: ChatLink
+    )
+}
+
+
+#if compiler(>=6)
+extension ChatProbeResult: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatProbeResult: FfiConverterRustBuffer {
+    typealias SwiftType = ChatProbeResult
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatProbeResult {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .noInbound
+
+        case 2: return .pending(handshake: try FfiConverterTypeChatLinkHandshake.read(from: &buf)
+        )
+
+        case 3: return .established(link: try FfiConverterTypeChatLink.read(from: &buf)
+        )
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ChatProbeResult, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .noInbound:
+            writeInt(&buf, Int32(1))
+
+
+        case let .pending(handshake):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeChatLinkHandshake.write(handshake, into: &buf)
+
+
+        case let .established(link):
+            writeInt(&buf, Int32(3))
+            FfiConverterTypeChatLink.write(link, into: &buf)
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatProbeResult_lift(_ buf: RustBuffer) throws -> ChatProbeResult {
+    return try FfiConverterTypeChatProbeResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatProbeResult_lower(_ value: ChatProbeResult) -> RustBuffer {
+    return FfiConverterTypeChatProbeResult.lower(value)
+}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Source used for a resolved contact profile.
  */
 
@@ -16080,6 +18168,30 @@ extension PaykitError: Foundation.LocalizedError {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionUInt8: FfiConverterRustBuffer {
+    typealias SwiftType = UInt8?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt8.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt8.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
     typealias SwiftType = UInt64?
 
@@ -16176,6 +18288,30 @@ fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeChatLink: FfiConverterRustBuffer {
+    typealias SwiftType = ChatLink?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeChatLink.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeChatLink.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypePrivateOperationError: FfiConverterRustBuffer {
     typealias SwiftType = PrivateOperationError?
 
@@ -16264,6 +18400,30 @@ fileprivate struct FfiConverterOptionTypeBillingPeriod: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeBillingPeriod.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeChatReceiverMarker: FfiConverterRustBuffer {
+    typealias SwiftType = ChatReceiverMarker?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeChatReceiverMarker.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeChatReceiverMarker.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -16818,6 +18978,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeChatMessage: FfiConverterRustBuffer {
+    typealias SwiftType = [ChatMessage]
+
+    public static func write(_ value: [ChatMessage], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeChatMessage.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ChatMessage] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ChatMessage]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeChatMessage.read(from: &buf))
         }
         return seq
     }
@@ -17693,6 +19878,21 @@ public func generateReceiptId() -> String  {
 })
 }
 /**
+ * Generate a random receiver-scoped Noise secret key, hex encoded (32 bytes).
+ *
+ * Mirrors `paykit-wasm`'s `generateNoiseSecretKey`: the key is an independent
+ * random secret, never the Pubky identity secret. Store it in platform secure
+ * storage; it is required to restore Encrypted Links and to derive private
+ * message paths. The platform caller must minimize its own copies of the
+ * returned hex.
+ */
+public func generateReceiverNoiseSecretKeyHex() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_paykit_fn_func_generate_receiver_noise_secret_key_hex($0
+    )
+})
+}
+/**
  * Normalize raw z32 or `pubky...` public-key text to app-key form.
  */
 public func normalizePubkyPublicKey(value: String)throws  -> String  {
@@ -17763,6 +19963,21 @@ public func rawPubkyPublicKey(value: String)throws  -> String  {
 })
 }
 /**
+ * Derive the z-base-32 public key published in a Receiver Marker from a hex
+ * receiver Noise secret key.
+ *
+ * Mirrors `paykit-wasm`'s `noisePublicKeyFromSecret`.
+ *
+ * The platform caller must minimize its own copies of `secret_key_hex`.
+ */
+public func receiverNoisePublicKeyFromSecretHex(secretKeyHex: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypePaykitError_lift) {
+    uniffi_paykit_fn_func_receiver_noise_public_key_from_secret_hex(
+        FfiConverterString.lower(secretKeyHex),$0
+    )
+})
+}
+/**
  * Return a shortened `pubky...` public key for diagnostics.
  */
 public func redactedPubkyPublicKey(value: String)throws  -> String  {
@@ -17823,6 +20038,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_paykit_checksum_func_generate_receipt_id() != 34487) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_paykit_checksum_func_generate_receiver_noise_secret_key_hex() != 3743) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_paykit_checksum_func_normalize_pubky_public_key() != 1980) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17844,6 +20062,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_paykit_checksum_func_raw_pubky_public_key() != 57096) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_paykit_checksum_func_receiver_noise_public_key_from_secret_hex() != 895) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_paykit_checksum_func_redacted_pubky_public_key() != 54739) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17851,6 +20072,93 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_paykit_checksum_func_resolve_pubky_url() != 12085) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatauthflow_authorization_url() != 31063) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatauthflow_await_approval() != 58212) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatclient_get_receiver_marker() != 64649) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatclient_restore_session() != 26393) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatclient_signin_with_secret() != 33367) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatclient_signup_with_secret() != 32090) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatclient_start_auth_flow() != 34303) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_close() != 57162) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_local_receiver_path() != 58751) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_receive_private_application_messages() != 29947) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_recipient() != 44380) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_remote_noise_public_key() != 31948) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_remote_receiver_path() != 55929) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_send_private_application_message_json() != 53851) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_set_max_send_retries() != 3975) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlink_snapshot() != 56956) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlinkhandshake_advance() != 11441) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlinkhandshake_set_max_recovery_attempts() != 7054) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatlinkhandshake_snapshot() != 54253) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_accept_encrypted_link() != 40851) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_clear_encrypted_link_outbox() != 36923) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_export_session() != 46033) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_initiate_encrypted_link() != 25587) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_probe_inbound_encrypted_link() != 9295) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_pubky() != 10186) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_publish_receiver_marker() != 32228) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_remove_receiver_marker() != 37083) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_restore_encrypted_link() != 9811) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_method_ffichatsession_restore_encrypted_link_handshake() != 33439) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_paykit_checksum_method_ffipaykitsdk_accept_link_with_peer() != 24950) {
@@ -18226,6 +20534,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_paykit_checksum_method_ffisdkstateblobstore_save_state_blob_atomically() != 4172) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_constructor_ffichatclient_new() != 62539) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_paykit_checksum_constructor_ffichatclient_with_pubky_client_config() != 22326) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_paykit_checksum_constructor_ffipaykitsdk_new() != 15447) {
