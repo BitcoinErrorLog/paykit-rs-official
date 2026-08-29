@@ -585,10 +585,606 @@ async fn test_chat_auth_flow_signin_via_local_relay() {
     let session = session.expect("auth flow should resolve to a session");
     assert_eq!(session.pubky(), peer.session.pubky());
 
+    // The approved session can exercise its /pub/paykit/:rw capability.
+    session
+        .publish_receiver_marker(
+            "chat/server".into(),
+            peer.noise_public_key.clone(),
+            messaging_capabilities(),
+        )
+        .await
+        .expect("approved session should be able to publish a Paykit marker");
+    session
+        .remove_receiver_marker("chat/server".into())
+        .await
+        .expect("approved session should be able to remove a Paykit marker");
+
     // The flow is consumed after approval.
     let consumed = flow.await_approval().await.unwrap_err();
     assert!(
-        consumed.to_string().contains("auth flow already consumed"),
+        matches!(
+            &consumed,
+            PaykitFfiError::Protocol { code, context }
+                if code == "consumed" && context.contains("auth flow already consumed")
+        ),
         "expected consumed-flow error, got: {consumed}"
     );
+}
+
+fn error_parts(err: &PaykitFfiError) -> (&str, &str, String) {
+    match err {
+        PaykitFfiError::Storage { code, context } => ("storage", code.as_str(), context.clone()),
+        PaykitFfiError::Identity { code, context } => ("identity", code.as_str(), context.clone()),
+        PaykitFfiError::Transport { code, context } => {
+            ("transport", code.as_str(), context.clone())
+        }
+        PaykitFfiError::NotFound { code, context } => ("not_found", code.as_str(), context.clone()),
+        PaykitFfiError::Protocol { code, context } => ("protocol", code.as_str(), context.clone()),
+        PaykitFfiError::Policy { code, context } => ("policy", code.as_str(), context.clone()),
+        PaykitFfiError::PaymentAdapter { code, context } => {
+            ("payment_adapter", code.as_str(), context.clone())
+        }
+        PaykitFfiError::RecoveryRequired { code, context } => {
+            ("recovery_required", code.as_str(), context.clone())
+        }
+    }
+}
+
+fn assert_safe_chat_error(err: &PaykitFfiError) {
+    let rendered = err.to_string();
+    assert!(
+        !rendered.contains("://"),
+        "URL leaked into chat error: {rendered}"
+    );
+    assert!(
+        !rendered.contains('{') && !rendered.contains('}'),
+        "raw payload leaked into chat error: {rendered}"
+    );
+    assert!(
+        !rendered.contains('\n'),
+        "multiline payload leaked into chat error: {rendered}"
+    );
+}
+
+fn decode_secret_hex(hex_secret: &str) -> [u8; 32] {
+    let mut secret = [0u8; 32];
+    hex::decode_to_slice(hex_secret, &mut secret).expect("stored secret should be valid hex");
+    secret
+}
+
+async fn raw_session(testnet: &EphemeralTestnet, identity_secret_hex: &str) -> pubky::PubkySession {
+    let signer = testnet
+        .sdk()
+        .expect("testnet Pubky client")
+        .signer(pubky::Keypair::from_secret(&decode_secret_hex(
+            identity_secret_hex,
+        )));
+    signer.signin().await.expect("raw signin should succeed")
+}
+
+#[tokio::test]
+async fn test_start_auth_flow_requires_paykit_rw() {
+    let client = FfiChatClient::new().expect("default client should construct");
+
+    let missing = client
+        .start_auth_flow("/pub/pubky.app/:rw".into(), None)
+        .await
+        .unwrap_err();
+    let (variant, code, context) = error_parts(&missing);
+    assert_eq!(variant, "identity");
+    assert_eq!(code, "capabilities_missing");
+    assert!(
+        context.contains("/pub/paykit/"),
+        "expected paykit scope in validation error, got: {context}"
+    );
+
+    let ok = client.start_auth_flow("/pub/paykit/:rw".into(), None).await;
+    assert!(ok.is_ok(), "exact paykit rw grant should be accepted");
+}
+
+#[tokio::test]
+async fn test_chat_message_and_auth_flow_debug_never_emit_secrets() {
+    let message = FfiChatMessage {
+        version: Some(1),
+        kind: Some(CHAT_KIND.into()),
+        raw_json: r#"{"version":1,"kind":"chat.message.v0","payload":{"text":"secret"}}"#.into(),
+    };
+    let message_debug = format!("{message:?}");
+    assert!(
+        message_debug.contains("redacted"),
+        "Debug should mark raw_json as redacted: {message_debug}"
+    );
+    assert!(
+        !message_debug.contains("payload") && !message_debug.contains("secret"),
+        "raw JSON payload leaked into Debug: {message_debug}"
+    );
+
+    let client = FfiChatClient::new().expect("default client should construct");
+    let flow = client
+        .start_auth_flow("/pub/paykit/:rw".into(), None)
+        .await
+        .expect("valid capabilities should start a flow");
+    let url = flow.authorization_url();
+    let flow_debug = format!("{flow:?}");
+    assert!(
+        url.starts_with("pubkyauth:"),
+        "authorization URL should be a pubkyauth deep link"
+    );
+    assert!(
+        !flow_debug.contains("pubkyauth:"),
+        "Debug must not emit the auth URL: {flow_debug}"
+    );
+    assert!(
+        !flow_debug.contains(&url),
+        "Debug must not emit the auth URL: {flow_debug}"
+    );
+}
+
+#[test]
+fn test_map_chat_lib_error_redacts_handshake_send_receive_payloads() {
+    let handshake = map_chat_lib_error(paykit_lib::PaykitError::Transport {
+        context: "handshake step failed: https://homeserver.example/pub/paykit/v0/private/SECRET {payload: leak}".into(),
+        source: anyhow::anyhow!("GET https://homeserver.example/x failed: body"),
+    });
+    let send = map_chat_lib_error(paykit_lib::PaykitError::Transport {
+        context: "failed to send Private Application Message: {err: Some(\"https://evil\") }"
+            .into(),
+        source: anyhow::anyhow!("raw send payload"),
+    });
+    let receive = map_chat_lib_error(paykit_lib::PaykitError::Transport {
+        context:
+            "failed to receive Private Application Messages: DecryptionError { inner: \"leak\" }"
+                .into(),
+        source: anyhow::anyhow!("raw receive payload"),
+    });
+
+    for err in [&handshake, &send, &receive] {
+        assert_safe_chat_error(err);
+    }
+
+    let (_, handshake_code, handshake_ctx) = error_parts(&handshake);
+    assert_eq!(handshake_code, "handshake_failed");
+    assert_eq!(handshake_ctx, "handshake step failed");
+
+    let (_, send_code, send_ctx) = error_parts(&send);
+    assert_eq!(send_code, "send_failed");
+    assert_eq!(send_ctx, "failed to send Private Application Message");
+
+    let (_, receive_code, receive_ctx) = error_parts(&receive);
+    assert_eq!(receive_code, "receive_failed");
+    assert_eq!(
+        receive_ctx,
+        "failed to receive Private Application Messages"
+    );
+}
+
+#[tokio::test]
+async fn test_advance_survives_ffi_future_cancellation() {
+    let testnet = build_testnet().await;
+    let initiator = ChatPeer::sign_up(&testnet).await;
+    let responder = ChatPeer::sign_up(&testnet).await;
+
+    let handshake = initiator
+        .session
+        .initiate_encrypted_link(
+            initiator.noise_secret_hex.clone(),
+            responder.session.pubky(),
+            responder.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+
+    tokio::select! {
+        _ = handshake.advance() => {}
+        _ = tokio::time::sleep(Duration::from_millis(1)) => {}
+    }
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let step = handshake
+        .advance()
+        .await
+        .expect("cancelled advance must leave the handle usable");
+    assert!(
+        !step.complete,
+        "a single initiator step should still be pending"
+    );
+    handshake
+        .snapshot()
+        .await
+        .expect("handle must remain snapshot-able after a cancelled advance");
+}
+
+#[tokio::test]
+async fn test_failing_advance_consumes_handle_and_snapshot_restore_recovers() {
+    let testnet = build_testnet().await;
+    let initiator = ChatPeer::sign_up(&testnet).await;
+    let responder = ChatPeer::sign_up(&testnet).await;
+
+    let initiator_handshake = initiator
+        .session
+        .initiate_encrypted_link(
+            initiator.noise_secret_hex.clone(),
+            responder.session.pubky(),
+            responder.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+    let responder_handshake = responder
+        .session
+        .accept_encrypted_link(
+            responder.noise_secret_hex.clone(),
+            initiator.session.pubky(),
+            initiator.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+
+    let step = initiator_handshake.advance().await.unwrap();
+    assert!(!step.complete);
+
+    let snapshot = responder_handshake
+        .snapshot()
+        .await
+        .expect("fresh responder should snapshot");
+
+    let slot = first_local_handshake_slot(
+        &decode_secret_hex(&initiator.noise_secret_hex),
+        &pubky::PublicKey::try_from(initiator.session.pubky().as_str()).unwrap(),
+        &pubky::PublicKey::try_from(responder.session.pubky().as_str()).unwrap(),
+        &pubky::PublicKey::try_from(responder.noise_public_key.as_str()).unwrap(),
+        &paykit_lib::PaykitReceiverPath::new(RECEIVER_PATH).unwrap(),
+        &paykit_lib::PaykitReceiverPath::new(RECEIVER_PATH).unwrap(),
+    );
+    let raw_session = raw_session(&testnet, &initiator.identity_secret_hex).await;
+    let original = raw_session
+        .storage()
+        .get(&slot)
+        .await
+        .expect("initiator handshake slot should exist")
+        .bytes()
+        .await
+        .expect("handshake slot bytes")
+        .to_vec();
+    raw_session
+        .storage()
+        .put(&slot, vec![0u8; 1020])
+        .await
+        .expect("overwriting the handshake slot should succeed");
+
+    let failed = responder_handshake.advance().await.unwrap_err();
+    let (variant, code, _) = error_parts(&failed);
+    assert_eq!(variant, "protocol");
+    assert_eq!(code, "handshake_failed");
+    assert_safe_chat_error(&failed);
+
+    let consumed = responder_handshake.advance().await.unwrap_err();
+    let (variant, code, _) = error_parts(&consumed);
+    assert_eq!(variant, "protocol");
+    assert_eq!(code, "consumed");
+
+    raw_session
+        .storage()
+        .put(&slot, original)
+        .await
+        .expect("restoring the original handshake slot should succeed");
+
+    let restored = responder
+        .session
+        .restore_encrypted_link_handshake(
+            responder.noise_secret_hex.clone(),
+            initiator.session.pubky(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+            snapshot,
+        )
+        .await
+        .expect("restore from the last persisted snapshot should succeed");
+
+    let (initiator_link, responder_link) = tokio::join!(
+        drive_handshake(initiator_handshake),
+        drive_handshake(restored),
+    );
+    let message = chat_message_json("recovered after failed advance");
+    initiator_link
+        .send_private_application_message_json(message.clone())
+        .await
+        .unwrap();
+    let received = responder_link
+        .receive_private_application_messages()
+        .await
+        .unwrap();
+    assert_eq!(received.len(), 1);
+    assert_eq!(received[0].raw_json, message);
+}
+
+#[tokio::test]
+async fn test_restore_handshake_rejects_wrong_noise_key_and_recipient() {
+    let testnet = build_testnet().await;
+    let initiator = ChatPeer::sign_up(&testnet).await;
+    let responder = ChatPeer::sign_up(&testnet).await;
+
+    let initiator_handshake = initiator
+        .session
+        .initiate_encrypted_link(
+            initiator.noise_secret_hex.clone(),
+            responder.session.pubky(),
+            responder.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+    let responder_handshake = responder
+        .session
+        .accept_encrypted_link(
+            responder.noise_secret_hex.clone(),
+            initiator.session.pubky(),
+            initiator.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+    assert!(!initiator_handshake.advance().await.unwrap().complete);
+    assert!(!responder_handshake.advance().await.unwrap().complete);
+    let snapshot = responder_handshake.snapshot().await.unwrap();
+
+    let wrong_key = responder
+        .session
+        .restore_encrypted_link_handshake(
+            generate_receiver_noise_secret_key_hex(),
+            initiator.session.pubky(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+            snapshot.clone(),
+        )
+        .await
+        .unwrap_err();
+    let (variant, code, _) = error_parts(&wrong_key);
+    assert!(
+        matches!(
+            (variant, code),
+            ("transport", "transport_error")
+                | ("protocol", "validation")
+                | ("protocol", "protocol_error")
+        ),
+        "wrong noise key should be a typed restore error, got {variant}/{code}: {wrong_key}"
+    );
+    assert_safe_chat_error(&wrong_key);
+
+    let wrong_recipient = responder
+        .session
+        .restore_encrypted_link_handshake(
+            responder.noise_secret_hex.clone(),
+            responder.session.pubky(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+            snapshot,
+        )
+        .await
+        .unwrap_err();
+    let (variant, code, context) = error_parts(&wrong_recipient);
+    assert_eq!(variant, "protocol");
+    assert_eq!(code, "validation");
+    assert!(
+        context.contains("recipient") || context.contains("remote"),
+        "wrong recipient should mention the mismatch, got: {context}"
+    );
+    assert_safe_chat_error(&wrong_recipient);
+}
+
+#[tokio::test]
+async fn test_send_rejects_missing_kind_and_oversize_payload() {
+    let testnet = build_testnet().await;
+    let (_initiator, _responder, initiator_link, responder_link) = linked_peers(&testnet).await;
+
+    let missing_kind = initiator_link
+        .send_private_application_message_json(r#"{"version":1,"payload":{"text":"x"}}"#.into())
+        .await
+        .unwrap_err();
+    let (variant, code, context) = error_parts(&missing_kind);
+    assert_eq!(variant, "protocol");
+    assert_eq!(code, "validation");
+    assert!(
+        context.contains("kind"),
+        "missing kind must be surfaced, got: {context}"
+    );
+    assert_safe_chat_error(&missing_kind);
+
+    let oversized = format!(
+        r#"{{"version":1,"kind":"{CHAT_KIND}","payload":"{}"}}"#,
+        "x".repeat(1000)
+    );
+    assert!(oversized.len() > 1000);
+    let oversize_err = initiator_link
+        .send_private_application_message_json(oversized)
+        .await
+        .unwrap_err();
+    let (variant, code, context) = error_parts(&oversize_err);
+    assert_eq!(variant, "protocol");
+    assert_eq!(code, "validation");
+    assert!(
+        context.contains("exceeds") || context.contains("1000"),
+        "oversize payload must fail with a typed size error, got: {context}"
+    );
+    assert_safe_chat_error(&oversize_err);
+
+    initiator_link.close().await.unwrap();
+    responder_link.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_probe_none_crossed_and_established() {
+    let testnet = build_testnet().await;
+    let initiator = ChatPeer::sign_up(&testnet).await;
+    let responder = ChatPeer::sign_up(&testnet).await;
+
+    let none = responder
+        .session
+        .probe_inbound_encrypted_link(
+            responder.noise_secret_hex.clone(),
+            initiator.session.pubky(),
+            initiator.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .await
+        .expect("probe with no inbound must succeed");
+    assert!(
+        matches!(none, FfiChatProbeResult::NoInbound),
+        "expected NoInbound before anyone initiates"
+    );
+
+    let initiator_handshake = initiator
+        .session
+        .initiate_encrypted_link(
+            initiator.noise_secret_hex.clone(),
+            responder.session.pubky(),
+            responder.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+    let responder_handshake = responder
+        .session
+        .initiate_encrypted_link(
+            responder.noise_secret_hex.clone(),
+            initiator.session.pubky(),
+            initiator.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+    let (left, right) = tokio::join!(initiator_handshake.advance(), responder_handshake.advance());
+    assert!(!left.unwrap().complete);
+    assert!(!right.unwrap().complete);
+
+    let initiator_probe = initiator
+        .session
+        .probe_inbound_encrypted_link(
+            initiator.noise_secret_hex.clone(),
+            responder.session.pubky(),
+            responder.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .await
+        .expect("crossed probe must observe inbound");
+    let responder_probe = responder
+        .session
+        .probe_inbound_encrypted_link(
+            responder.noise_secret_hex.clone(),
+            initiator.session.pubky(),
+            initiator.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .await
+        .expect("crossed probe must observe inbound");
+    assert!(
+        !matches!(initiator_probe, FfiChatProbeResult::NoInbound),
+        "simultaneous initiate must not look like no inbound"
+    );
+    assert!(
+        !matches!(responder_probe, FfiChatProbeResult::NoInbound),
+        "simultaneous initiate must not look like no inbound"
+    );
+
+    let keep_initiator = initiator.session.pubky() < responder.session.pubky();
+    let (drive_left, drive_right) = if keep_initiator {
+        match responder_probe {
+            FfiChatProbeResult::Pending { handshake } => (initiator_handshake, handshake),
+            FfiChatProbeResult::Established { link } => {
+                let message = chat_message_json("probe established immediately");
+                initiator_handshake.advance().await.ok();
+                let _ = link;
+                drop(message);
+                panic!("XX handshake should not complete in one responder probe after one write");
+            }
+            FfiChatProbeResult::NoInbound => unreachable!("checked above"),
+        }
+    } else {
+        match initiator_probe {
+            FfiChatProbeResult::Pending { handshake } => (responder_handshake, handshake),
+            FfiChatProbeResult::Established { link } => {
+                let _ = link;
+                panic!("XX handshake should not complete in one responder probe after one write");
+            }
+            FfiChatProbeResult::NoInbound => unreachable!("checked above"),
+        }
+    };
+
+    let (left_link, right_link) =
+        tokio::join!(drive_handshake(drive_left), drive_handshake(drive_right));
+    let message = chat_message_json("crossed probe resolved");
+    left_link
+        .send_private_application_message_json(message.clone())
+        .await
+        .unwrap();
+    let received = right_link
+        .receive_private_application_messages()
+        .await
+        .unwrap();
+    assert_eq!(received.len(), 1);
+    assert_eq!(received[0].raw_json, message);
+
+    let solo_initiator = ChatPeer::sign_up(&testnet).await;
+    let solo_responder = ChatPeer::sign_up(&testnet).await;
+    let solo_handshake = solo_initiator
+        .session
+        .initiate_encrypted_link(
+            solo_initiator.noise_secret_hex.clone(),
+            solo_responder.session.pubky(),
+            solo_responder.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+    assert!(!solo_handshake.advance().await.unwrap().complete);
+
+    let probed = solo_responder
+        .session
+        .probe_inbound_encrypted_link(
+            solo_responder.noise_secret_hex.clone(),
+            solo_initiator.session.pubky(),
+            solo_initiator.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .await
+        .expect("probe after a real initiate should find inbound");
+    let responder_handle = match probed {
+        FfiChatProbeResult::Pending { handshake } => handshake,
+        FfiChatProbeResult::Established { link } => {
+            let initiator_link = drive_handshake(solo_handshake).await;
+            let message = chat_message_json("probe established");
+            initiator_link
+                .send_private_application_message_json(message.clone())
+                .await
+                .unwrap();
+            let received = link.receive_private_application_messages().await.unwrap();
+            assert_eq!(received[0].raw_json, message);
+            return;
+        }
+        FfiChatProbeResult::NoInbound => panic!("inbound from initiate must be visible to probe"),
+    };
+
+    let (initiator_link, responder_link) = tokio::join!(
+        drive_handshake(solo_handshake),
+        drive_handshake(responder_handle),
+    );
+    let message = chat_message_json("probe established via drive");
+    initiator_link
+        .send_private_application_message_json(message.clone())
+        .await
+        .unwrap();
+    let received = responder_link
+        .receive_private_application_messages()
+        .await
+        .unwrap();
+    assert_eq!(received.len(), 1);
+    assert_eq!(received[0].kind.as_deref(), Some(CHAT_KIND));
+    assert_eq!(received[0].raw_json, message);
 }
