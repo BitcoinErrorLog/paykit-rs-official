@@ -12,6 +12,9 @@
 
 use std::{fmt, sync::Arc};
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use paykit_lib::{
     EncryptedLink, EncryptedLinkHandshake, EncryptedLinkHandshakeSnapshot, EncryptedLinkSnapshot,
     HandshakeProgress, PaykitReceiverCapabilities, PaykitReceiverMarker, PaykitReceiverPath,
@@ -311,6 +314,8 @@ impl FfiChatClient {
             inner: Arc::new(AuthFlowShared {
                 cell: AsyncMutex::new(AuthFlowCell::Ready(flow)),
                 notify: Notify::new(),
+                #[cfg(test)]
+                hold: TestOpHold::new(),
             }),
         }))
     }
@@ -353,6 +358,8 @@ pub struct FfiChatAuthFlow {
 struct AuthFlowShared {
     cell: AsyncMutex<AuthFlowCell>,
     notify: Notify,
+    #[cfg(test)]
+    hold: TestOpHold,
 }
 
 enum AuthFlowCell {
@@ -393,6 +400,8 @@ impl FfiChatAuthFlow {
                     drop(guard);
                     let shared = Arc::clone(&self.inner);
                     tokio::spawn(async move {
+                        #[cfg(test)]
+                        shared.hold.wait_if_armed().await;
                         let result = flow.await_approval().await.map_err(|err| {
                             pubky_error("auth_flow_failed", "Pubky auth flow failed", err)
                         });
@@ -406,6 +415,7 @@ impl FfiChatAuthFlow {
                     .await;
                 }
                 AuthFlowCell::InFlight => {
+                    *guard = AuthFlowCell::InFlight;
                     drop(guard);
                     wait_while(&self.inner.notify, || async {
                         matches!(&*self.inner.cell.lock().await, AuthFlowCell::InFlight)
@@ -613,7 +623,8 @@ impl FfiChatSession {
     ///   failed (unrecoverable for this handle)
     ///
     /// Use this instead of blindly `accept`+`advance` when both peers may
-    /// initiate at once: `NoInbound` means it is safe to initiate; a
+    /// initiate at once: `NoInbound` means no inbound was observed at probe
+    /// time; when racing is possible, re-probe before initiating. A
     /// `Pending`/`Established` result means this side should be the responder.
     ///
     /// The whole probe is spawned onto the Tokio runtime so cancelling the
@@ -828,6 +839,8 @@ pub struct FfiChatLinkHandshake {
 struct HandshakeShared {
     cell: AsyncMutex<HandshakeCell>,
     notify: Notify,
+    #[cfg(test)]
+    hold: TestOpHold,
 }
 
 enum HandshakeCell {
@@ -855,6 +868,8 @@ impl FfiChatLinkHandshake {
             inner: Arc::new(HandshakeShared {
                 cell: AsyncMutex::new(HandshakeCell::Ready(handshake)),
                 notify: Notify::new(),
+                #[cfg(test)]
+                hold: TestOpHold::new(),
             }),
         }
     }
@@ -885,6 +900,8 @@ impl FfiChatLinkHandshake {
                     drop(guard);
                     let shared = Arc::clone(&self.inner);
                     tokio::spawn(async move {
+                        #[cfg(test)]
+                        shared.hold.wait_if_armed().await;
                         let outcome = match paykit_lib::advance_handshake(handshake).await {
                             Ok(HandshakeProgress::Pending(handshake)) => {
                                 Ok(HandshakeOutcome::Pending(handshake))
@@ -904,6 +921,7 @@ impl FfiChatLinkHandshake {
                     .await;
                 }
                 HandshakeCell::InFlight => {
+                    *guard = HandshakeCell::InFlight;
                     drop(guard);
                     wait_while(&self.inner.notify, || async {
                         matches!(&*self.inner.cell.lock().await, HandshakeCell::InFlight)
@@ -997,13 +1015,21 @@ pub struct FfiChatLink {
 struct LinkShared {
     cell: AsyncMutex<LinkInner>,
     notify: Notify,
+    #[cfg(test)]
+    hold: TestOpHold,
 }
 
 struct LinkInner {
     occupancy: LinkOccupancy,
-    parked_send: Option<Result<(), PaykitFfiError>>,
+    parked_send: Option<ParkedSend>,
     parked_receive: Option<Result<Vec<FfiChatMessage>, PaykitFfiError>>,
     parked_close: Option<Result<(), PaykitFfiError>>,
+}
+
+/// Settled result of a spawned send, keyed to the JSON that was actually sent.
+struct ParkedSend {
+    raw_json: String,
+    result: Result<(), PaykitFfiError>,
 }
 
 enum LinkOccupancy {
@@ -1012,9 +1038,9 @@ enum LinkOccupancy {
     Closed,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum LinkOp {
-    Send,
+    Send { raw_json: String },
     Receive,
     Close,
 }
@@ -1046,6 +1072,8 @@ impl FfiChatLink {
                     parked_close: None,
                 }),
                 notify: Notify::new(),
+                #[cfg(test)]
+                hold: TestOpHold::new(),
             }),
         }
     }
@@ -1081,8 +1109,12 @@ impl FfiChatLink {
     /// matters.
     ///
     /// The send is spawned onto the Tokio runtime so cancelling this FFI
-    /// future cannot drop the `EncryptedLink`. A later `send` resumes or
-    /// returns the settled result.
+    /// future cannot drop the `EncryptedLink`. A later `send` of the **same**
+    /// `raw_json` resumes or returns the settled result. A later `send` of a
+    /// **different** payload drains a settled parked result and starts a
+    /// fresh send; if a send of another payload is still in flight, this
+    /// returns `protocol/parked_result_conflict` so the new message is not
+    /// silently dropped.
     pub async fn send_private_application_message_json(
         &self,
         raw_json: String,
@@ -1090,18 +1122,30 @@ impl FfiChatLink {
         loop {
             let mut guard = self.inner.cell.lock().await;
             if let Some(parked) = guard.parked_send.take() {
-                return parked;
+                if parked.raw_json == raw_json {
+                    return parked.result;
+                }
+                // Different payload, settled: drain the parked result and
+                // fall through to send this payload.
             }
             match &mut guard.occupancy {
-                LinkOccupancy::InFlight(LinkOp::Send) => {
+                LinkOccupancy::InFlight(LinkOp::Send {
+                    raw_json: in_flight,
+                }) if in_flight == &raw_json => {
                     drop(guard);
                     wait_while(&self.inner.notify, || async {
                         matches!(
                             &self.inner.cell.lock().await.occupancy,
-                            LinkOccupancy::InFlight(LinkOp::Send)
+                            LinkOccupancy::InFlight(LinkOp::Send { .. })
                         )
                     })
                     .await;
+                }
+                LinkOccupancy::InFlight(LinkOp::Send { .. }) => {
+                    return Err(protocol_error(
+                        "parked_result_conflict",
+                        "in-flight send is for a different payload",
+                    ));
                 }
                 LinkOccupancy::InFlight(_) => {
                     return Err(in_flight_error("link operation in flight; send refused"));
@@ -1110,7 +1154,9 @@ impl FfiChatLink {
                 LinkOccupancy::Ready(_) => {
                     let LinkOccupancy::Ready(mut link) = std::mem::replace(
                         &mut guard.occupancy,
-                        LinkOccupancy::InFlight(LinkOp::Send),
+                        LinkOccupancy::InFlight(LinkOp::Send {
+                            raw_json: raw_json.clone(),
+                        }),
                     ) else {
                         unreachable!("occupancy was Ready");
                     };
@@ -1118,19 +1164,21 @@ impl FfiChatLink {
                     let shared = Arc::clone(&self.inner);
                     let raw_json = raw_json.clone();
                     tokio::spawn(async move {
+                        #[cfg(test)]
+                        shared.hold.wait_if_armed().await;
                         let result = link
                             .send_private_application_message_json(&raw_json)
                             .await
                             .map_err(map_chat_lib_error);
                         let mut cell = shared.cell.lock().await;
                         cell.occupancy = LinkOccupancy::Ready(link);
-                        cell.parked_send = Some(result);
+                        cell.parked_send = Some(ParkedSend { raw_json, result });
                         shared.notify.notify_waiters();
                     });
                     wait_while(&self.inner.notify, || async {
                         matches!(
                             &self.inner.cell.lock().await.occupancy,
-                            LinkOccupancy::InFlight(LinkOp::Send)
+                            LinkOccupancy::InFlight(LinkOp::Send { .. })
                         )
                     })
                     .await;
@@ -1361,8 +1409,17 @@ async fn run_inbound_probe(
     );
     match pubky.public_storage().get(&addr).await {
         Ok(response) => {
-            if !response.status().is_success() {
-                return Ok(FfiChatProbeResult::NoInbound);
+            match response.status() {
+                StatusCode::NOT_FOUND | StatusCode::GONE => {
+                    return Ok(FfiChatProbeResult::NoInbound);
+                }
+                status if status.is_success() => {}
+                _ => {
+                    return Err(transport_error(
+                        "transport_error",
+                        "inbound handshake probe failed",
+                    ));
+                }
             }
             let bytes = response.bytes().await.map_err(|_| {
                 transport_error("transport_error", "inbound handshake probe failed")
@@ -1535,6 +1592,102 @@ where
     }
 }
 
+/// Test-only gate: when armed, a spawned op parks here before its network
+/// call so a retry can observe `InFlight` deterministically.
+#[cfg(test)]
+struct TestOpHold {
+    armed: AtomicBool,
+    entered: AtomicBool,
+    entered_notify: Notify,
+    release: Notify,
+}
+
+#[cfg(test)]
+impl TestOpHold {
+    fn new() -> Self {
+        Self {
+            armed: AtomicBool::new(false),
+            entered: AtomicBool::new(false),
+            entered_notify: Notify::new(),
+            release: Notify::new(),
+        }
+    }
+
+    fn arm(&self) {
+        self.entered.store(false, Ordering::SeqCst);
+        self.armed.store(true, Ordering::SeqCst);
+    }
+
+    fn release(&self) {
+        self.armed.store(false, Ordering::SeqCst);
+        self.release.notify_waiters();
+    }
+
+    async fn wait_if_armed(&self) {
+        if !self.armed.load(Ordering::SeqCst) {
+            return;
+        }
+        self.entered.store(true, Ordering::SeqCst);
+        self.entered_notify.notify_waiters();
+        wait_while(&self.release, || async {
+            self.armed.load(Ordering::SeqCst)
+        })
+        .await;
+    }
+
+    async fn wait_until_entered(&self) {
+        wait_while(&self.entered_notify, || async {
+            !self.entered.load(Ordering::SeqCst)
+        })
+        .await;
+    }
+}
+
+#[cfg(test)]
+impl FfiChatAuthFlow {
+    pub(crate) fn arm_test_hold(&self) {
+        self.inner.hold.arm();
+    }
+
+    pub(crate) fn release_test_hold(&self) {
+        self.inner.hold.release();
+    }
+
+    pub(crate) async fn wait_until_test_hold_entered(&self) {
+        self.inner.hold.wait_until_entered().await;
+    }
+}
+
+#[cfg(test)]
+impl FfiChatLinkHandshake {
+    pub(crate) fn arm_test_hold(&self) {
+        self.inner.hold.arm();
+    }
+
+    pub(crate) fn release_test_hold(&self) {
+        self.inner.hold.release();
+    }
+
+    pub(crate) async fn wait_until_test_hold_entered(&self) {
+        self.inner.hold.wait_until_entered().await;
+    }
+}
+
+#[cfg(test)]
+impl FfiChatLink {
+    pub(crate) fn arm_test_hold(&self) {
+        self.inner.hold.arm();
+    }
+
+    pub(crate) fn release_test_hold(&self) {
+        self.inner.hold.release();
+    }
+
+    pub(crate) async fn wait_until_test_hold_entered(&self) {
+        self.inner.hold.wait_until_entered().await;
+    }
+}
+
 fn to_public_key(value: String) -> Result<pubky::PublicKey, PaykitFfiError> {
     Ok(parse_public_key(value)?.to_public_key()?)
 }
@@ -1547,13 +1700,14 @@ fn secret_key_from_hex(
         hex::decode(value.trim())
             .map_err(|_| validation_error(format!("{what} secret key hex is invalid")))?,
     );
-    let decoded: [u8; 32] = bytes.as_slice().try_into().map_err(|_| {
-        validation_error(format!(
-            "{what} secret key must be 32 bytes, got {}",
-            bytes.len()
-        ))
-    })?;
-    Ok(Zeroizing::new(decoded))
+    Ok(Zeroizing::new(
+        <[u8; 32]>::try_from(bytes.as_slice()).map_err(|_| {
+            validation_error(format!(
+                "{what} secret key must be 32 bytes, got {}",
+                bytes.len()
+            ))
+        })?,
+    ))
 }
 
 // SECURITY / REDACTION: like `map_pubky_identity_error` in paykit-sdk and the
@@ -1603,20 +1757,41 @@ pub(crate) fn map_chat_lib_error(err: paykit_lib::PaykitError) -> PaykitFfiError
                 transport_error("transport_error", "encrypted link transport failed")
             }
         }
-        paykit_lib::PaykitError::NotFound(msg) => PaykitFfiError::NotFound {
+        paykit_lib::PaykitError::NotFound(_) => PaykitFfiError::NotFound {
             code: "not_found".into(),
-            context: sanitize_chat_context(&msg, "resource not found"),
+            context: "resource not found".into(),
         },
-        paykit_lib::PaykitError::InvalidData { context, source: _ } => protocol_error(
-            "protocol_error",
-            sanitize_chat_context(&context, "invalid encrypted link data"),
-        ),
-        paykit_lib::PaykitError::Validation(msg) => protocol_error(
-            "validation",
-            sanitize_chat_context(&msg, "encrypted link validation failed"),
-        ),
+        paykit_lib::PaykitError::InvalidData {
+            context: _,
+            source: _,
+        } => protocol_error("protocol_error", "invalid encrypted link data"),
+        paykit_lib::PaykitError::Validation(msg) => {
+            protocol_error("validation", validation_chat_context(&msg))
+        }
     }
 }
+
+/// Closed allowlist for Validation contexts. Known envelope/size/restore
+/// phrases stay distinguishable for callers; anything that looks like a
+/// storage path or is otherwise unsafe falls back to a fixed string.
+fn validation_chat_context(msg: &str) -> String {
+    if msg.contains("exceeds") || msg.contains("max message size") {
+        "payload exceeds max message size".into()
+    } else if msg.contains("kind must be a string")
+        || (msg.contains("kind") && !msg.contains("version"))
+    {
+        "Private Application Message kind must be a string".into()
+    } else if msg.contains("version must be") || (msg.contains("version") && !msg.contains("kind"))
+    {
+        "Private Application Message version must be a u8 integer".into()
+    } else if msg.contains("recipient") || msg.contains("does not match snapshot") {
+        "restore recipient does not match snapshot".into()
+    } else {
+        sanitize_chat_context(msg, "encrypted link validation failed")
+    }
+}
+
+const CHAT_CONTEXT_MAX_LEN: usize = 96;
 
 fn sanitize_chat_context(context: &str, fallback: &str) -> String {
     if context.contains("://")
@@ -1624,6 +1799,8 @@ fn sanitize_chat_context(context: &str, fallback: &str) -> String {
         || context.contains('}')
         || context.contains('<')
         || context.contains('\n')
+        || context.contains('/')
+        || context.len() > CHAT_CONTEXT_MAX_LEN
     {
         fallback.to_string()
     } else {

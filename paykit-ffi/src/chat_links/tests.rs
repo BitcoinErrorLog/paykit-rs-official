@@ -644,6 +644,11 @@ fn assert_safe_chat_error(err: &PaykitFfiError) {
         !rendered.contains('\n'),
         "multiline payload leaked into chat error: {rendered}"
     );
+    let (_, _, context) = error_parts(err);
+    assert!(
+        !context.contains('/'),
+        "storage path leaked into chat error context: {context}"
+    );
 }
 
 fn decode_secret_hex(hex_secret: &str) -> [u8; 32] {
@@ -756,6 +761,39 @@ fn test_map_chat_lib_error_redacts_handshake_send_receive_payloads() {
         receive_ctx,
         "failed to receive Private Application Messages"
     );
+
+    let not_found = map_chat_lib_error(paykit_lib::PaykitError::NotFound(
+        "/pub/paykit/v0/private/SECRET/inbox".into(),
+    ));
+    let invalid = map_chat_lib_error(paykit_lib::PaykitError::InvalidData {
+        context: "/pub/paykit/v0/private/SECRET {payload}".into(),
+        source: None,
+    });
+    let validation_path = map_chat_lib_error(paykit_lib::PaykitError::Validation(
+        "/pub/paykit/v0/private/SECRET is not a valid receiver".into(),
+    ));
+    let validation_long = map_chat_lib_error(paykit_lib::PaykitError::Validation("x".repeat(200)));
+
+    for err in [&not_found, &invalid, &validation_path, &validation_long] {
+        assert_safe_chat_error(err);
+    }
+
+    let (not_found_variant, not_found_code, not_found_ctx) = error_parts(&not_found);
+    assert_eq!(not_found_variant, "not_found");
+    assert_eq!(not_found_code, "not_found");
+    assert_eq!(not_found_ctx, "resource not found");
+
+    let (_, invalid_code, invalid_ctx) = error_parts(&invalid);
+    assert_eq!(invalid_code, "protocol_error");
+    assert_eq!(invalid_ctx, "invalid encrypted link data");
+
+    let (_, path_code, path_ctx) = error_parts(&validation_path);
+    assert_eq!(path_code, "validation");
+    assert_eq!(path_ctx, "encrypted link validation failed");
+
+    let (_, long_code, long_ctx) = error_parts(&validation_long);
+    assert_eq!(long_code, "validation");
+    assert_eq!(long_ctx, "encrypted link validation failed");
 }
 
 #[tokio::test]
@@ -1187,4 +1225,194 @@ async fn test_probe_none_crossed_and_established() {
     assert_eq!(received.len(), 1);
     assert_eq!(received[0].kind.as_deref(), Some(CHAT_KIND));
     assert_eq!(received[0].raw_json, message);
+}
+
+#[tokio::test]
+async fn test_advance_retry_while_in_flight_returns_settled_result() {
+    let testnet = build_testnet().await;
+    let initiator = ChatPeer::sign_up(&testnet).await;
+    let responder = ChatPeer::sign_up(&testnet).await;
+
+    let handshake = initiator
+        .session
+        .initiate_encrypted_link(
+            initiator.noise_secret_hex.clone(),
+            responder.session.pubky(),
+            responder.noise_public_key.clone(),
+            RECEIVER_PATH.into(),
+            RECEIVER_PATH.into(),
+        )
+        .unwrap();
+
+    handshake.arm_test_hold();
+    tokio::select! {
+        _ = handshake.advance() => panic!("advance completed before the spawned step entered the hold"),
+        _ = handshake.wait_until_test_hold_entered() => {}
+    }
+
+    let in_flight = handshake.snapshot().await.unwrap_err();
+    let (variant, code, _) = error_parts(&in_flight);
+    assert_eq!(
+        (variant, code),
+        ("protocol", "in_flight"),
+        "retry window must still be InFlight, not consumed: {in_flight}"
+    );
+
+    let mut retry = {
+        let handshake = Arc::clone(&handshake);
+        tokio::spawn(async move { handshake.advance().await })
+    };
+    tokio::select! {
+        r = &mut retry => panic!("retry completed while the spawned step was still held: {r:?}"),
+        _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+    }
+    let still_in_flight = handshake.snapshot().await.unwrap_err();
+    let (variant, code, _) = error_parts(&still_in_flight);
+    assert_eq!(
+        (variant, code),
+        ("protocol", "in_flight"),
+        "retry-while-held must keep InFlight: {still_in_flight}"
+    );
+
+    handshake.release_test_hold();
+    let step = retry
+        .await
+        .expect("retry task should join")
+        .expect("retry while in-flight must return the settled result, not consumed");
+    assert!(
+        !step.complete,
+        "a single initiator step should still be pending"
+    );
+    handshake
+        .snapshot()
+        .await
+        .expect("handle must remain snapshot-able after an in-flight retry");
+}
+
+#[tokio::test]
+async fn test_await_approval_second_call_while_pending_returns_settled_result() {
+    let testnet = build_testnet_with(true).await;
+    let peer = ChatPeer::sign_up(&testnet).await;
+
+    let relay_inbox = testnet
+        .http_relay()
+        .local_url()
+        .join("inbox")
+        .expect("relay inbox URL should be valid")
+        .to_string();
+    let flow = peer
+        .client
+        .start_auth_flow("/pub/paykit/:rw".into(), Some(relay_inbox))
+        .await
+        .unwrap();
+    let auth_url = flow.authorization_url();
+
+    flow.arm_test_hold();
+    tokio::select! {
+        _ = flow.await_approval() => panic!("await_approval completed before the spawned wait entered the hold"),
+        _ = flow.wait_until_test_hold_entered() => {}
+    }
+
+    let mut retry = {
+        let flow = Arc::clone(&flow);
+        tokio::spawn(async move { flow.await_approval().await })
+    };
+    tokio::select! {
+        r = &mut retry => panic!("second await_approval completed while still held: {r:?}"),
+        _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+    }
+
+    flow.release_test_hold();
+
+    let signer_identity = {
+        let mut secret = [0u8; 32];
+        hex::decode_to_slice(&peer.identity_secret_hex, &mut secret)
+            .expect("stored identity secret should be valid hex");
+        pubky::Keypair::from_secret(&secret)
+    };
+    let signer = testnet
+        .sdk()
+        .expect("testnet Pubky client")
+        .signer(signer_identity);
+    let (approval, session) = tokio::join!(signer.approve_auth(&auth_url), async {
+        retry.await.expect("retry task should join")
+    });
+    approval.expect("signer approval should succeed");
+    let session = session.expect(
+        "second await_approval while pending must return the settled session, not consumed",
+    );
+    assert_eq!(session.pubky(), peer.session.pubky());
+}
+
+#[tokio::test]
+async fn test_send_different_payload_after_parked_send_is_not_silently_dropped() {
+    let testnet = build_testnet().await;
+    let (_initiator, _responder, initiator_link, responder_link) = linked_peers(&testnet).await;
+
+    let first = chat_message_json("parked-m1");
+    let second = chat_message_json("follow-up-m2");
+
+    initiator_link.arm_test_hold();
+    tokio::select! {
+        _ = initiator_link.send_private_application_message_json(first.clone()) => {
+            panic!("send completed before the spawned step entered the hold");
+        }
+        _ = initiator_link.wait_until_test_hold_entered() => {}
+    }
+
+    let conflict = initiator_link
+        .send_private_application_message_json(second.clone())
+        .await
+        .expect_err("a different payload must not wait on or inherit the in-flight send");
+    let (variant, code, context) = error_parts(&conflict);
+    assert_eq!(variant, "protocol");
+    assert_eq!(code, "parked_result_conflict");
+    assert!(
+        context.contains("different payload"),
+        "conflict context should distinguish payload mismatch, got: {context}"
+    );
+    assert_safe_chat_error(&conflict);
+
+    initiator_link.release_test_hold();
+    loop {
+        match initiator_link.snapshot().await {
+            Ok(_) => break,
+            Err(err) => {
+                let (variant, code, _) = error_parts(&err);
+                assert_eq!(
+                    (variant, code),
+                    ("protocol", "in_flight"),
+                    "waiting for parked send to settle, got: {err}"
+                );
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }
+    }
+
+    initiator_link
+        .send_private_application_message_json(second.clone())
+        .await
+        .expect("settled parked send of a different payload must start a fresh send");
+
+    let mut received = Vec::new();
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(5) {
+        received.extend(
+            responder_link
+                .receive_private_application_messages()
+                .await
+                .unwrap(),
+        );
+        if received.iter().any(|message| message.raw_json == second) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(
+        received.iter().any(|message| message.raw_json == second),
+        "M2 must be sent after a parked M1; got: {received:?}"
+    );
+
+    initiator_link.close().await.unwrap();
+    responder_link.close().await.unwrap();
 }
