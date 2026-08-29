@@ -120,6 +120,12 @@ pub struct FfiChatClient {
     inner: Pubky,
 }
 
+impl fmt::Debug for FfiChatClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FfiChatClient").finish_non_exhaustive()
+    }
+}
+
 #[cfg(test)]
 impl FfiChatClient {
     /// Test-only seam wrapping an existing Pubky client (e.g. one wired to an
@@ -275,6 +281,15 @@ pub struct FfiChatAuthFlow {
     inner: AsyncMutex<Option<PubkyAuthFlow>>,
 }
 
+impl fmt::Debug for FfiChatAuthFlow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The authorization URL embeds the flow's client secret; redact it.
+        f.debug_struct("FfiChatAuthFlow")
+            .field("url", &format_args!("<redacted:{} bytes>", self.url.len()))
+            .finish_non_exhaustive()
+    }
+}
+
 #[uniffi::export(async_runtime = "tokio")]
 impl FfiChatAuthFlow {
     /// The `pubkyauth:` URL to present to the signer (QR code / deep link).
@@ -308,6 +323,14 @@ impl FfiChatAuthFlow {
 pub struct FfiChatSession {
     session: PubkySession,
     pubky: Pubky,
+}
+
+impl fmt::Debug for FfiChatSession {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FfiChatSession")
+            .field("pubky", &self.session.info().public_key().z32())
+            .finish_non_exhaustive()
+    }
 }
 
 #[uniffi::export(async_runtime = "tokio")]
@@ -511,6 +534,13 @@ pub struct FfiChatLinkHandshake {
     inner: AsyncMutex<Option<EncryptedLinkHandshake>>,
 }
 
+impl fmt::Debug for FfiChatLinkHandshake {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FfiChatLinkHandshake")
+            .finish_non_exhaustive()
+    }
+}
+
 impl FfiChatLinkHandshake {
     fn new(handshake: EncryptedLinkHandshake) -> Self {
         Self {
@@ -581,6 +611,17 @@ pub struct FfiChatLink {
     local_receiver_path: String,
     remote_receiver_path: String,
     inner: AsyncMutex<Option<EncryptedLink>>,
+}
+
+impl fmt::Debug for FfiChatLink {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FfiChatLink")
+            .field("recipient", &self.recipient)
+            .field("remote_noise_public_key", &self.remote_noise_public_key)
+            .field("local_receiver_path", &self.local_receiver_path)
+            .field("remote_receiver_path", &self.remote_receiver_path)
+            .finish_non_exhaustive()
+    }
 }
 
 impl FfiChatLink {
