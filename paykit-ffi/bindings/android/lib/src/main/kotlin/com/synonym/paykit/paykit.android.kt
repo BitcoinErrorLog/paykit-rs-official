@@ -1571,6 +1571,12 @@ internal typealias UniffiVTableCallbackInterfaceFfiSdkStateBlobStoreUniffiByValu
 
 
 
+
+
+
+
+
+
 @Synchronized
 private fun findLibraryName(componentName: String): String {
     val libOverride = System.getProperty("uniffi.component.$componentName.libraryOverride")
@@ -1610,6 +1616,12 @@ internal object IntegrityCheckingUniffiLib : Library {
         }
     }
     private fun uniffiCheckApiChecksums() {
+        if (uniffi_paykit_checksum_func_attachment_decrypt() != 35692.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_func_attachment_encrypt() != 62116.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
         if (uniffi_paykit_checksum_func_decode_sdk_state_blob_snapshot() != 4823.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
@@ -1620,6 +1632,9 @@ internal object IntegrityCheckingUniffiLib : Library {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
         if (uniffi_paykit_checksum_func_encode_sdk_state_blob_snapshot() != 49508.toShort()) {
+            throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+        }
+        if (uniffi_paykit_checksum_func_generate_attachment_key() != 16172.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
         if (uniffi_paykit_checksum_func_generate_receipt_id() != 34487.toShort()) {
@@ -1682,7 +1697,7 @@ internal object IntegrityCheckingUniffiLib : Library {
         if (uniffi_paykit_checksum_method_ffichatclient_start_auth_flow() != 34303.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
-        if (uniffi_paykit_checksum_method_ffichatlink_close() != 57162.toShort()) {
+        if (uniffi_paykit_checksum_method_ffichatlink_close_link() != 35169.toShort()) {
             throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
         }
         if (uniffi_paykit_checksum_method_ffichatlink_local_receiver_path() != 58751.toShort()) {
@@ -2181,6 +2196,12 @@ internal object IntegrityCheckingUniffiLib : Library {
 
     // Integrity check functions only
     @JvmStatic
+    external fun uniffi_paykit_checksum_func_attachment_decrypt(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_func_attachment_encrypt(
+    ): Short
+    @JvmStatic
     external fun uniffi_paykit_checksum_func_decode_sdk_state_blob_snapshot(
     ): Short
     @JvmStatic
@@ -2191,6 +2212,9 @@ internal object IntegrityCheckingUniffiLib : Library {
     ): Short
     @JvmStatic
     external fun uniffi_paykit_checksum_func_encode_sdk_state_blob_snapshot(
+    ): Short
+    @JvmStatic
+    external fun uniffi_paykit_checksum_func_generate_attachment_key(
     ): Short
     @JvmStatic
     external fun uniffi_paykit_checksum_func_generate_receipt_id(
@@ -2253,7 +2277,7 @@ internal object IntegrityCheckingUniffiLib : Library {
     external fun uniffi_paykit_checksum_method_ffichatclient_start_auth_flow(
     ): Short
     @JvmStatic
-    external fun uniffi_paykit_checksum_method_ffichatlink_close(
+    external fun uniffi_paykit_checksum_method_ffichatlink_close_link(
     ): Short
     @JvmStatic
     external fun uniffi_paykit_checksum_method_ffichatlink_local_receiver_path(
@@ -2847,7 +2871,7 @@ internal object UniffiLib : Library {
         uniffiCallStatus: UniffiRustCallStatus,
     ): Unit
     @JvmStatic
-    external fun uniffi_paykit_fn_method_ffichatlink_close(
+    external fun uniffi_paykit_fn_method_ffichatlink_close_link(
         `ptr`: Pointer?,
     ): Long
     @JvmStatic
@@ -3967,6 +3991,21 @@ internal object UniffiLib : Library {
         uniffiCallStatus: UniffiRustCallStatus,
     ): RustBufferByValue
     @JvmStatic
+    external fun uniffi_paykit_fn_func_attachment_decrypt(
+        `ciphertextB64`: RustBufferByValue,
+        `keyB64`: RustBufferByValue,
+        `nonceB64`: RustBufferByValue,
+        `aad`: RustBufferByValue,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_func_attachment_encrypt(
+        `plaintextB64`: RustBufferByValue,
+        `keyB64`: RustBufferByValue,
+        `aad`: RustBufferByValue,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
     external fun uniffi_paykit_fn_func_decode_sdk_state_blob_snapshot(
         `bytes`: RustBufferByValue,
         uniffiCallStatus: UniffiRustCallStatus,
@@ -3983,6 +4022,10 @@ internal object UniffiLib : Library {
     @JvmStatic
     external fun uniffi_paykit_fn_func_encode_sdk_state_blob_snapshot(
         `snapshot`: RustBufferByValue,
+        uniffiCallStatus: UniffiRustCallStatus,
+    ): RustBufferByValue
+    @JvmStatic
+    external fun uniffi_paykit_fn_func_generate_attachment_key(
         uniffiCallStatus: UniffiRustCallStatus,
     ): RustBufferByValue
     @JvmStatic
@@ -5150,14 +5193,18 @@ public open class ChatLink: Disposable, ChatLinkInterface {
      * unusable afterwards.
      *
      * Close is spawned onto the Tokio runtime so cancelling this FFI future
-     * cannot drop the `EncryptedLink` before cleanup. A later `close`
+     * cannot drop the `EncryptedLink` before cleanup. A later `close_link`
      * resumes or returns the settled result.
+     *
+     * Named `close_link` (not `close`) because UniFFI's Kotlin codegen adds a
+     * non-suspend `close()` via `Disposable` to every object, and a suspend
+     * `close()` here creates conflicting overloads that fail compilation.
      */
     @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
-    public override suspend fun `close`() {
+    public override suspend fun `closeLink`() {
         return uniffiRustCallAsync(
             callWithPointer { thisPtr ->
-                UniffiLib.uniffi_paykit_fn_method_ffichatlink_close(
+                UniffiLib.uniffi_paykit_fn_method_ffichatlink_close_link(
                     thisPtr,
                 )
             },
@@ -11474,6 +11521,31 @@ internal object uniffiCallbackInterfaceFfiSdkStateBlobStore {
 
 
 
+public object FfiConverterTypeAttachmentCiphertext: FfiConverterRustBuffer<AttachmentCiphertext> {
+    override fun read(buf: ByteBuffer): AttachmentCiphertext {
+        return AttachmentCiphertext(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: AttachmentCiphertext): ULong = (
+            FfiConverterString.allocationSize(value.`nonceB64`) +
+            FfiConverterString.allocationSize(value.`ciphertextB64`) +
+            FfiConverterString.allocationSize(value.`algorithm`)
+    )
+
+    override fun write(value: AttachmentCiphertext, buf: ByteBuffer) {
+        FfiConverterString.write(value.`nonceB64`, buf)
+        FfiConverterString.write(value.`ciphertextB64`, buf)
+        FfiConverterString.write(value.`algorithm`, buf)
+    }
+}
+
+
+
+
 public object FfiConverterTypeBillingPeriod: FfiConverterRustBuffer<BillingPeriod> {
     override fun read(buf: ByteBuffer): BillingPeriod {
         return BillingPeriod(
@@ -16247,6 +16319,49 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
 
 
 /**
+ * Decrypt `ciphertext_b64` with `key_b64` and `nonce_b64`.
+ *
+ * `aad` must match the associated data used at encrypt time. Returns the
+ * plaintext encoded as base64url (no padding). Authentication failure maps to
+ * `protocol/decrypt_failed` with a fixed redacted context.
+ *
+ * The platform caller must minimize its own copies of `key_b64`.
+ */
+@Throws(PaykitException::class)
+public fun `attachmentDecrypt`(`ciphertextB64`: kotlin.String, `keyB64`: kotlin.String, `nonceB64`: kotlin.String, `aad`: kotlin.String?): kotlin.String {
+    return FfiConverterString.lift(uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
+        UniffiLib.uniffi_paykit_fn_func_attachment_decrypt(
+            FfiConverterString.lower(`ciphertextB64`),
+            FfiConverterString.lower(`keyB64`),
+            FfiConverterString.lower(`nonceB64`),
+            FfiConverterOptionalString.lower(`aad`),
+            uniffiRustCallStatus,
+        )
+    })
+}
+
+/**
+ * Encrypt `plaintext_b64` (base64url, no padding) with `key_b64`.
+ *
+ * A fresh random 24-byte nonce is generated for every call. When `aad` is
+ * `Some`, those UTF-8 bytes are bound as associated data (the app should pass
+ * the canonical homeserver path); `None` uses empty associated data.
+ *
+ * The platform caller must minimize its own copies of `key_b64`.
+ */
+@Throws(PaykitException::class)
+public fun `attachmentEncrypt`(`plaintextB64`: kotlin.String, `keyB64`: kotlin.String, `aad`: kotlin.String?): AttachmentCiphertext {
+    return FfiConverterTypeAttachmentCiphertext.lift(uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
+        UniffiLib.uniffi_paykit_fn_func_attachment_encrypt(
+            FfiConverterString.lower(`plaintextB64`),
+            FfiConverterString.lower(`keyB64`),
+            FfiConverterOptionalString.lower(`aad`),
+            uniffiRustCallStatus,
+        )
+    })
+}
+
+/**
  * Decode an SDK state blob snapshot previously encoded by Paykit FFI.
  */
 @Throws(PaykitException::class)
@@ -16291,6 +16406,20 @@ public fun `encodeSdkStateBlobSnapshot`(`snapshot`: SdkStateBlobSnapshot): kotli
     return FfiConverterByteArray.lift(uniffiRustCallWithError(PaykitExceptionErrorHandler) { uniffiRustCallStatus ->
         UniffiLib.uniffi_paykit_fn_func_encode_sdk_state_blob_snapshot(
             FfiConverterTypeSdkStateBlobSnapshot.lower(`snapshot`),
+            uniffiRustCallStatus,
+        )
+    })
+}
+
+/**
+ * Generate a random 32-byte attachment key, encoded as base64url (no padding).
+ *
+ * Store it in platform secure storage. The platform caller must minimize its
+ * own copies of the returned key.
+ */
+public fun `generateAttachmentKey`(): kotlin.String {
+    return FfiConverterString.lift(uniffiRustCall { uniffiRustCallStatus ->
+        UniffiLib.uniffi_paykit_fn_func_generate_attachment_key(
             uniffiRustCallStatus,
         )
     })

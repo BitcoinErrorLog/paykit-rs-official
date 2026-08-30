@@ -452,9 +452,9 @@ void*_Nonnull uniffi_paykit_fn_clone_ffichatlink(void*_Nonnull ptr, RustCallStat
 void uniffi_paykit_fn_free_ffichatlink(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_METHOD_FFICHATLINK_CLOSE
-#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_METHOD_FFICHATLINK_CLOSE
-uint64_t uniffi_paykit_fn_method_ffichatlink_close(void*_Nonnull ptr
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_METHOD_FFICHATLINK_CLOSE_LINK
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_METHOD_FFICHATLINK_CLOSE_LINK
+uint64_t uniffi_paykit_fn_method_ffichatlink_close_link(void*_Nonnull ptr
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_METHOD_FFICHATLINK_LOCAL_RECEIVER_PATH
@@ -1464,6 +1464,16 @@ RustBuffer uniffi_paykit_fn_method_ffisdkstateblobstore_load_state_blob(void*_No
 RustBuffer uniffi_paykit_fn_method_ffisdkstateblobstore_save_state_blob_atomically(void*_Nonnull ptr, void*_Nonnull blob, RustBuffer expected_revision, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_ATTACHMENT_DECRYPT
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_ATTACHMENT_DECRYPT
+RustBuffer uniffi_paykit_fn_func_attachment_decrypt(RustBuffer ciphertext_b64, RustBuffer key_b64, RustBuffer nonce_b64, RustBuffer aad, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_ATTACHMENT_ENCRYPT
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_ATTACHMENT_ENCRYPT
+RustBuffer uniffi_paykit_fn_func_attachment_encrypt(RustBuffer plaintext_b64, RustBuffer key_b64, RustBuffer aad, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_DECODE_SDK_STATE_BLOB_SNAPSHOT
 #define UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_DECODE_SDK_STATE_BLOB_SNAPSHOT
 RustBuffer uniffi_paykit_fn_func_decode_sdk_state_blob_snapshot(RustBuffer bytes, RustCallStatus *_Nonnull out_status
@@ -1483,6 +1493,12 @@ RustBuffer uniffi_paykit_fn_func_default_pubky_client_config(RustCallStatus *_No
 #ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_ENCODE_SDK_STATE_BLOB_SNAPSHOT
 #define UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_ENCODE_SDK_STATE_BLOB_SNAPSHOT
 RustBuffer uniffi_paykit_fn_func_encode_sdk_state_blob_snapshot(RustBuffer snapshot, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_GENERATE_ATTACHMENT_KEY
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_GENERATE_ATTACHMENT_KEY
+RustBuffer uniffi_paykit_fn_func_generate_attachment_key(RustCallStatus *_Nonnull out_status
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_FN_FUNC_GENERATE_RECEIPT_ID
@@ -1832,6 +1848,18 @@ void ffi_paykit_rust_future_free_void(uint64_t handle
 void ffi_paykit_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_ATTACHMENT_DECRYPT
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_ATTACHMENT_DECRYPT
+uint16_t uniffi_paykit_checksum_func_attachment_decrypt(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_ATTACHMENT_ENCRYPT
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_ATTACHMENT_ENCRYPT
+uint16_t uniffi_paykit_checksum_func_attachment_encrypt(void
+
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_DECODE_SDK_STATE_BLOB_SNAPSHOT
 #define UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_DECODE_SDK_STATE_BLOB_SNAPSHOT
 uint16_t uniffi_paykit_checksum_func_decode_sdk_state_blob_snapshot(void
@@ -1853,6 +1881,12 @@ uint16_t uniffi_paykit_checksum_func_default_pubky_client_config(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_ENCODE_SDK_STATE_BLOB_SNAPSHOT
 #define UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_ENCODE_SDK_STATE_BLOB_SNAPSHOT
 uint16_t uniffi_paykit_checksum_func_encode_sdk_state_blob_snapshot(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_GENERATE_ATTACHMENT_KEY
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_FUNC_GENERATE_ATTACHMENT_KEY
+uint16_t uniffi_paykit_checksum_func_generate_attachment_key(void
 
 );
 #endif
@@ -1976,9 +2010,9 @@ uint16_t uniffi_paykit_checksum_method_ffichatclient_start_auth_flow(void
 
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_METHOD_FFICHATLINK_CLOSE
-#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_METHOD_FFICHATLINK_CLOSE
-uint16_t uniffi_paykit_checksum_method_ffichatlink_close(void
+#ifndef UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_METHOD_FFICHATLINK_CLOSE_LINK
+#define UNIFFI_FFIDEF_UNIFFI_PAYKIT_CHECKSUM_METHOD_FFICHATLINK_CLOSE_LINK
+uint16_t uniffi_paykit_checksum_method_ffichatlink_close_link(void
 
 );
 #endif

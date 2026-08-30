@@ -217,11 +217,15 @@ public interface ChatLinkInterface {
      * unusable afterwards.
      *
      * Close is spawned onto the Tokio runtime so cancelling this FFI future
-     * cannot drop the `EncryptedLink` before cleanup. A later `close`
+     * cannot drop the `EncryptedLink` before cleanup. A later `close_link`
      * resumes or returns the settled result.
+     *
+     * Named `close_link` (not `close`) because UniFFI's Kotlin codegen adds a
+     * non-suspend `close()` via `Disposable` to every object, and a suspend
+     * `close()` here creates conflicting overloads that fail compilation.
      */
     @Throws(PaykitException::class, kotlin.coroutines.cancellation.CancellationException::class)
-    public suspend fun `close`()
+    public suspend fun `closeLink`()
 
     /**
      * Local Paykit receiver path.
@@ -1407,6 +1411,29 @@ public interface SdkStateBlobStore {
     public companion object
 }
 
+
+
+
+/**
+ * Encrypted attachment blob returned by [`attachment_encrypt`].
+ */
+@kotlinx.serialization.Serializable
+public data class AttachmentCiphertext (
+    /**
+     * Fresh 24-byte XChaCha20-Poly1305 nonce, base64url (no padding).
+     */
+    val `nonceB64`: kotlin.String,
+    /**
+     * Authenticated ciphertext (ciphertext || tag), base64url (no padding).
+     */
+    val `ciphertextB64`: kotlin.String,
+    /**
+     * Algorithm label. Always `XChaCha20Poly1305`.
+     */
+    val `algorithm`: kotlin.String
+) {
+    public companion object
+}
 
 
 
