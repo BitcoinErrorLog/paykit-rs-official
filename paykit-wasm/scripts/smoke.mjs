@@ -291,6 +291,26 @@ ok("private payment list serialize/parse round-trips and rejects reserved ids", 
   );
 });
 
+ok("private payment list keeps __proto__ as an own data property", () => {
+  // An object literal `{ __proto__: ... }` mutates the prototype; define an
+  // own data property so serialize sees the identifier as a real key.
+  const input = {};
+  Object.defineProperty(input, "__proto__", {
+    value: "ln-proto",
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+  input.lightning = "ln...";
+  const json = serializePrivatePaymentListJson(input);
+  const parsed = parsePrivatePaymentListJson(json);
+  const proto = Object.getOwnPropertyDescriptor(parsed, "__proto__");
+  assert.ok(proto && !proto.get && !proto.set, "expected an own data property");
+  assert.equal(proto.value, "ln-proto");
+  assert.equal(parsed.lightning, "ln...");
+  assert.ok(Object.prototype.hasOwnProperty.call(parsed, "__proto__"));
+});
+
 ok("getPaymentEndpoint rejects an invalid identifier before any I/O", () => {
   const client = new PubkyClient();
   const knownZ32 = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";

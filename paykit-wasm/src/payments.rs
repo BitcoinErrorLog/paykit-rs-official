@@ -14,8 +14,31 @@ use crate::keys::public_key_from_z32;
 use crate::link::receiver_path;
 use crate::session::{PubkyClient, SessionHandle};
 
-fn set(obj: &js_sys::Object, key: &str, value: &JsValue) {
-    let _ = js_sys::Reflect::set(obj, &JsValue::from_str(key), value);
+/// Define `key` as an own enumerable data property.
+///
+/// `Reflect::set` on a normal object treats `__proto__` as the prototype
+/// setter (a valid [`PaymentEndpointIdentifier`]), which drops a string
+/// payload as a silent no-op. `define_property` always creates an own
+/// data property, so identifier→payload maps keep every key.
+fn define_own_string(obj: &js_sys::Object, key: &str, value: &str) {
+    let descriptor = js_sys::Object::new();
+    let _ = js_sys::Reflect::set(
+        &descriptor,
+        &JsValue::from_str("value"),
+        &JsValue::from_str(value),
+    );
+    let _ = js_sys::Reflect::set(&descriptor, &JsValue::from_str("writable"), &JsValue::TRUE);
+    let _ = js_sys::Reflect::set(
+        &descriptor,
+        &JsValue::from_str("enumerable"),
+        &JsValue::TRUE,
+    );
+    let _ = js_sys::Reflect::set(
+        &descriptor,
+        &JsValue::from_str("configurable"),
+        &JsValue::TRUE,
+    );
+    let _ = js_sys::Reflect::define_property(obj, &JsValue::from_str(key), &descriptor);
 }
 
 fn payment_endpoint_identifier(value: &str) -> Result<PaymentEndpointIdentifier, JsValue> {
@@ -92,11 +115,7 @@ pub(crate) fn private_payment_list_from_js(
 fn payment_list_to_js(list: &PaymentList) -> js_sys::Object {
     let obj = js_sys::Object::new();
     for (identifier, payload) in &list.payment_endpoints {
-        set(
-            &obj,
-            identifier.as_str(),
-            &JsValue::from_str(payload.as_str()),
-        );
+        define_own_string(&obj, identifier.as_str(), payload.as_str());
     }
     obj
 }
@@ -104,7 +123,7 @@ fn payment_list_to_js(list: &PaymentList) -> js_sys::Object {
 fn pairs_to_js(pairs: &[(String, String)]) -> js_sys::Object {
     let obj = js_sys::Object::new();
     for (identifier, payload) in pairs {
-        set(&obj, identifier, &JsValue::from_str(payload));
+        define_own_string(&obj, identifier, payload);
     }
     obj
 }
@@ -292,6 +311,31 @@ mod tests {
                 .unwrap()
                 .as_str(),
             "btc-lightning-bolt11"
+        );
+    }
+
+    #[test]
+    fn identifier_from_str_accepts_proto_key() {
+        assert_eq!(
+            identifier_from_str("__proto__").unwrap().as_str(),
+            "__proto__"
+        );
+    }
+
+    #[test]
+    fn private_list_round_trip_preserves_proto_identifier() {
+        let json = serialize_private_list_pairs([
+            ("__proto__".into(), "ln-proto".into()),
+            ("lightning".into(), "ln...".into()),
+        ])
+        .unwrap();
+        let pairs = parse_private_list_to_pairs(&json).unwrap();
+        assert_eq!(
+            pairs,
+            vec![
+                ("__proto__".into(), "ln-proto".into()),
+                ("lightning".into(), "ln...".into()),
+            ]
         );
     }
 

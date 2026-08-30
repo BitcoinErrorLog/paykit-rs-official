@@ -570,6 +570,8 @@ export interface InitOutput {
     readonly sessionhandle_pubky: (a: number) => [number, number];
     readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
     readonly signOutSession: (a: number) => any;
+    readonly maxNoiseMessageLen: () => number;
+    readonly noiseTagLen: () => number;
     readonly __wbg_encryptedlinkhandle_free: (a: number, b: number) => void;
     readonly __wbg_linkhandshakehandle_free: (a: number, b: number) => void;
     readonly acceptEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
@@ -596,9 +598,7 @@ export interface InitOutput {
     readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
     readonly listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly maxNoiseMessageLen: () => number;
     readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
-    readonly noiseTagLen: () => number;
     readonly parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
     readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];

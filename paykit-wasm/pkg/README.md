@@ -158,10 +158,10 @@ additively:
 
 | File | SHA-256 |
 | --- | --- |
-| `pkg/paykit_wasm_bg.wasm` | `f2f510c9a86137382e9f2f9ee8c51d81dc9d3f61671cbbf36e9cacb5c0fb09d3` |
-| `pkg/paykit_wasm.js` | `534f21849f9e13d40281f4df8ef8433d9f427a50747b284fd60f6b5106a184a2` |
-| `pkg/paykit_wasm.d.ts` | `55529b18a9be11be08bdc39bc603f33a4a59f9314c0265caabb07c9a70a0c2c9` |
-| `pkg/paykit_wasm_bg.wasm.d.ts` | `0ebcf3078c9b2705231c5a51c94cdc7bd3dc42cb9f15226252b2888607f8c296` |
+| `pkg/paykit_wasm_bg.wasm` | `a33b944c81b1661047b4d6f50ee41aab9342eef664a4e4f1470fcd94790949b5` |
+| `pkg/paykit_wasm.js` | `9e0520f8f357d9c186828c9fefa4cceb52aa28389a05312fe359d7219a417507` |
+| `pkg/paykit_wasm.d.ts` | `6196e530c54dd210d39235ad424c42ae26a9e6aa2bae120ee1a1366253c13c21` |
+| `pkg/paykit_wasm_bg.wasm.d.ts` | `4489b880773d5fbab7cf1aec9ac77c7d39b4def6a235af45cf054340c0afe055` |
 | `pkg/package.json` | `ecfde395fb97cdeec3cc22768601c483059a7e5b02a842eab260c83e2ef0c60f` |
 
 Generated `pkg/` size: ~1.8 MB (wasm ~1.7 MB). `wasm-opt` output is not

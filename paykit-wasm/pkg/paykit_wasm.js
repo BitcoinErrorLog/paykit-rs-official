@@ -1486,6 +1486,10 @@ function __wbg_get_imports() {
             const ret = arg0.crypto;
             return ret;
         },
+        __wbg_defineProperty_0096265c3e5479b6: function() { return handleError(function (arg0, arg1, arg2) {
+            const ret = Reflect.defineProperty(arg0, arg1, arg2);
+            return ret;
+        }, arguments); },
         __wbg_done_19f92cb1f8738aba: function(arg0) {
             const ret = arg0.done;
             return ret;
