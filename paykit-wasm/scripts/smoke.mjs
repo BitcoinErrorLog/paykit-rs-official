@@ -36,6 +36,11 @@ import init, {
   removeReceiverMarker,
   maxNoiseMessageLen,
   noiseTagLen,
+  x25519GenerateKeypair,
+  sb2VerifySignature,
+  sb2Decrypt,
+  publicGet,
+  signOutSession,
 } from "../pkg/paykit_wasm.js";
 
 const wasmPath = fileURLToPath(
@@ -68,6 +73,11 @@ ok("messaging API surface exported", () => {
     removeReceiverMarker,
     maxNoiseMessageLen,
     noiseTagLen,
+    x25519GenerateKeypair,
+    sb2VerifySignature,
+    sb2Decrypt,
+    publicGet,
+    signOutSession,
   ]) {
     assert.equal(typeof fn, "function");
   }
@@ -89,6 +99,8 @@ ok("messaging API surface exported", () => {
   assert.equal(typeof PubkyClient.prototype.restoreSession, "function");
   assert.equal(typeof PubkyClient.prototype.resumeSessionFromCookie, "function");
   assert.equal(typeof SessionHandle.prototype.exportSession, "function");
+  assert.equal(typeof SessionHandle.prototype.putPublic, "function");
+  assert.equal(typeof SessionHandle.prototype.deletePublic, "function");
 });
 
 // 3. Constants match the pubky-noise wire contract.
@@ -109,6 +121,17 @@ ok("receiver noise key generation", () => {
   assert.equal(pub1, pub2);
   assert.match(pub1, /^[a-z0-9]{52}$/);
   assert.notEqual(pub1, noisePublicKeyFromSecret(bobNoiseSecret));
+});
+
+ok("x25519GenerateKeypair is hex and distinct from generateNoiseSecretKey", () => {
+  const pair = x25519GenerateKeypair();
+  assert.match(pair.publicKey, /^[0-9a-f]{64}$/);
+  assert.match(pair.secretKey, /^[0-9a-f]{64}$/);
+  assert.notEqual(pair.publicKey, pair.secretKey);
+  const other = x25519GenerateKeypair();
+  assert.notEqual(pair.secretKey, other.secretKey);
+  const noiseHex = Buffer.from(aliceNoiseSecret).toString("hex");
+  assert.notEqual(pair.secretKey, noiseHex);
 });
 
 // Identity pubkeys for endpoint labelling (z-base-32 Ed25519 keys). These

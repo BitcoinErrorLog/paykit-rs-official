@@ -710,6 +710,18 @@ export class SessionHandle {
         wasm.__wbg_sessionhandle_free(ptr, 0);
     }
     /**
+     * Authenticated DELETE of an absolute homeserver path. Cookie-authorized
+     * the same way as `putPublic`.
+     * @param {string} path
+     * @returns {Promise<any>}
+     */
+    deletePublic(path) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.sessionhandle_deletePublic(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
      * Export session metadata for rehydrating via
      * `PubkyClient.restoreSession()` after a page reload.
      *
@@ -747,6 +759,23 @@ export class SessionHandle {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * Authenticated PUT of `body` at an absolute homeserver path (e.g.
+     * `/pub/hypercolor.app/v1/…`). The browser attaches the HTTP-only
+     * session cookie; this is not a Cookie-header constructor and must
+     * never be fed `exportSession()` as a bearer.
+     * @param {string} path
+     * @param {Uint8Array} body
+     * @returns {Promise<any>}
+     */
+    putPublic(path, body) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(body, wasm.__wbindgen_malloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.sessionhandle_putPublic(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
     }
 }
 if (Symbol.dispose) SessionHandle.prototype[Symbol.dispose] = SessionHandle.prototype.free;
@@ -940,6 +969,30 @@ export function noiseTagLen() {
 }
 
 /**
+ * Unauthenticated public GET of `{ownerPubky}{path}`.
+ *
+ * `ownerPubky` accepts z-base-32 or 64-hex. A homeserver 404 or 410
+ * resolves to `undefined`; other failures reject. Used to fetch a
+ * paykit-connect SB2 handoff from `/pub/`.
+ * @param {PubkyClient} client
+ * @param {string} owner_pubky
+ * @param {string} path
+ * @returns {Promise<any>}
+ */
+export function publicGet(client, owner_pubky, path) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.publicGet(client.__wbg_ptr, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Publish a public Paykit Receiver Marker for the session owner, making the
  * receiver path discoverable and advertising the receiver Noise public key
  * used for Encrypted Link path derivation.
@@ -1047,6 +1100,89 @@ export function restoreEncryptedLinkHandshake(session, noise_secret_key, remote_
         throw takeFromExternrefTable0(ret[1]);
     }
     return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Decrypt an SB2 envelope for the recipient X25519 secret key.
+ *
+ * Binds `Sb2::decode` + `Sb2::decrypt`. `ownerPubky` accepts z-base-32 or
+ * 64-hex. `canonicalPath` must match the path bound into the AAD at encrypt.
+ * @param {Uint8Array} envelope
+ * @param {Uint8Array} recipient_sk
+ * @param {string} owner_pubky
+ * @param {string} canonical_path
+ * @returns {Uint8Array}
+ */
+export function sb2Decrypt(envelope, recipient_sk, owner_pubky, canonical_path) {
+    const ptr0 = passArray8ToWasm0(envelope, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(recipient_sk, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2Decrypt(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v5 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v5;
+}
+
+/**
+ * Verify the Ed25519 signature on an SB2 envelope.
+ *
+ * Returns `true` when a signature is present and valid, `false` when no
+ * signature is present. Rejects when a signature is present but invalid
+ * (mirrors `pubky_noise` UniFFI `sb2_verify_signature`).
+ *
+ * `ownerPubky` accepts z-base-32 or 64-hex and is normalized to 32 bytes.
+ * @param {Uint8Array} envelope
+ * @param {string} owner_pubky
+ * @param {string} canonical_path
+ * @returns {boolean}
+ */
+export function sb2VerifySignature(envelope, owner_pubky, canonical_path) {
+    const ptr0 = passArray8ToWasm0(envelope, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2VerifySignature(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] !== 0;
+}
+
+/**
+ * Sign out and invalidate the homeserver session (cookie) server-side.
+ * Consumes the `SessionHandle`.
+ * @param {SessionHandle} session
+ * @returns {Promise<any>}
+ */
+export function signOutSession(session) {
+    _assertClass(session, SessionHandle);
+    var ptr0 = session.__destroy_into_raw();
+    const ret = wasm.signOutSession(ptr0);
+    return ret;
+}
+
+/**
+ * Generate a random X25519 keypair.
+ *
+ * Returns `{ publicKey, secretKey }` as lowercase 64-character hex strings.
+ * This is **not** `generateNoiseSecretKey` (that is an Ed25519 seed).
+ *
+ * Binds `pubky_crypto::sealed_blob::x25519_generate_keypair`.
+ * @returns {object}
+ */
+export function x25519GenerateKeypair() {
+    const ret = wasm.x25519GenerateKeypair();
+    return ret;
 }
 
 function __wbg_get_imports() {
@@ -1416,12 +1552,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1161, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1211, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 998, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1037, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1);
             return ret;
         },

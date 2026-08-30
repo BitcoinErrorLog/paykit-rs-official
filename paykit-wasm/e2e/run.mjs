@@ -444,6 +444,39 @@ async function main() {
     assert.equal(missingMarker, undefined);
     ok("unpublished marker path resolves to undefined (clean None)");
 
+    // Owner PUT / public GET / DELETE. Uses a paykit-connect-shaped path
+    // under /pub/ so the new wasm storage bindings are exercised against
+    // the local testnet (not production).
+    const handoffPath = `/pub/paykit.app/v0/handoff/e2e-${Date.now().toString(16)}`;
+    const handoffBody = Array.from(
+      new TextEncoder().encode(JSON.stringify({ sb2: "e2e-fixture" })),
+    );
+    await alice.evaluate(
+      async ({ path, body }) => {
+        await window.state.session.putPublic(path, new Uint8Array(body));
+      },
+      { path: handoffPath, body: handoffBody },
+    );
+    const fetchedHandoff = await bob.evaluate(
+      async ({ owner, path }) => {
+        const bytes = await window.paykit.publicGet(window.state.client, owner, path);
+        return bytes === undefined ? undefined : Array.from(bytes);
+      },
+      { owner: aliceId.pubky, path: handoffPath },
+    );
+    assert.deepEqual(fetchedHandoff, handoffBody);
+    await alice.evaluate(async (path) => {
+      await window.state.session.deletePublic(path);
+    }, handoffPath);
+    const goneHandoff = await bob.evaluate(
+      async ({ owner, path }) => {
+        return await window.paykit.publicGet(window.state.client, owner, path);
+      },
+      { owner: aliceId.pubky, path: handoffPath },
+    );
+    assert.equal(goneHandoff, undefined);
+    ok("putPublic / publicGet / deletePublic round-trip; missing path is undefined");
+
     // 4. Handshake over homeserver transport.
     await alice.evaluate(
       ({ bobPubky, bobNoise, receiverPath }) => {
@@ -633,6 +666,21 @@ async function main() {
     });
     assert.deepEqual(JSON.parse(aliceInbox2[0].rawJson), restoredReply);
     ok("restored context sent a message alice received (send path survives restore)");
+
+    await alice.evaluate(async () => {
+      await window.paykit.signOutSession(window.state.session);
+    });
+    const afterSignOut = await alice.evaluate(async (pubky) => {
+      try {
+        await window.state.client.resumeSessionFromCookie(pubky);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, name: err && err.name, message: String(err) };
+      }
+    }, aliceId.pubky);
+    assert.equal(afterSignOut.ok, false);
+    assert.equal(afterSignOut.name, "SessionResumeUnauthorized");
+    ok("signOutSession invalidates the cookie; resumeSessionFromCookie is unauthorized");
 
     console.log(`\n${passed}/${passed} browser e2e checks passed`);
   } finally {

@@ -290,6 +290,11 @@ export class SessionHandle {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Authenticated DELETE of an absolute homeserver path. Cookie-authorized
+     * the same way as `putPublic`.
+     */
+    deletePublic(path: string): Promise<any>;
+    /**
      * Export session metadata for rehydrating via
      * `PubkyClient.restoreSession()` after a page reload.
      *
@@ -304,6 +309,13 @@ export class SessionHandle {
      * The session owner's public key (z-base-32).
      */
     pubky(): string;
+    /**
+     * Authenticated PUT of `body` at an absolute homeserver path (e.g.
+     * `/pub/hypercolor.app/v1/…`). The browser attaches the HTTP-only
+     * session cookie; this is not a Cookie-header constructor and must
+     * never be fed `exportSession()` as a bearer.
+     */
+    putPublic(path: string, body: Uint8Array): Promise<any>;
 }
 
 /**
@@ -369,6 +381,15 @@ export function noisePublicKeyFromSecret(secret: Uint8Array): string;
 export function noiseTagLen(): number;
 
 /**
+ * Unauthenticated public GET of `{ownerPubky}{path}`.
+ *
+ * `ownerPubky` accepts z-base-32 or 64-hex. A homeserver 404 or 410
+ * resolves to `undefined`; other failures reject. Used to fetch a
+ * paykit-connect SB2 handoff from `/pub/`.
+ */
+export function publicGet(client: PubkyClient, owner_pubky: string, path: string): Promise<any>;
+
+/**
  * Publish a public Paykit Receiver Marker for the session owner, making the
  * receiver path discoverable and advertising the receiver Noise public key
  * used for Encrypted Link path derivation.
@@ -395,6 +416,41 @@ export function restoreEncryptedLink(session: SessionHandle, noise_secret_key: U
  */
 export function restoreEncryptedLinkHandshake(session: SessionHandle, noise_secret_key: Uint8Array, remote_pubky: string, local_receiver_path: string, remote_receiver_path: string, client: PubkyClient, snapshot: Uint8Array): Promise<any>;
 
+/**
+ * Decrypt an SB2 envelope for the recipient X25519 secret key.
+ *
+ * Binds `Sb2::decode` + `Sb2::decrypt`. `ownerPubky` accepts z-base-32 or
+ * 64-hex. `canonicalPath` must match the path bound into the AAD at encrypt.
+ */
+export function sb2Decrypt(envelope: Uint8Array, recipient_sk: Uint8Array, owner_pubky: string, canonical_path: string): Uint8Array;
+
+/**
+ * Verify the Ed25519 signature on an SB2 envelope.
+ *
+ * Returns `true` when a signature is present and valid, `false` when no
+ * signature is present. Rejects when a signature is present but invalid
+ * (mirrors `pubky_noise` UniFFI `sb2_verify_signature`).
+ *
+ * `ownerPubky` accepts z-base-32 or 64-hex and is normalized to 32 bytes.
+ */
+export function sb2VerifySignature(envelope: Uint8Array, owner_pubky: string, canonical_path: string): boolean;
+
+/**
+ * Sign out and invalidate the homeserver session (cookie) server-side.
+ * Consumes the `SessionHandle`.
+ */
+export function signOutSession(session: SessionHandle): Promise<any>;
+
+/**
+ * Generate a random X25519 keypair.
+ *
+ * Returns `{ publicKey, secretKey }` as lowercase 64-character hex strings.
+ * This is **not** `generateNoiseSecretKey` (that is an Ed25519 seed).
+ *
+ * Binds `pubky_crypto::sealed_blob::x25519_generate_keypair`.
+ */
+export function x25519GenerateKeypair(): object;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -418,6 +474,11 @@ export interface InitOutput {
     readonly linkhandshakehandle_snapshot: (a: number) => [number, number, number, number];
     readonly restoreEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly restoreEncryptedLinkHandshake: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly generateNoiseSecretKey: () => [number, number];
+    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
+    readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
+    readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
     readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
     readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
     readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
@@ -430,13 +491,15 @@ export interface InitOutput {
     readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
     readonly pubkyclient_testnet: () => [number, number, number];
+    readonly publicGet: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly sessionhandle_deletePublic: (a: number, b: number, c: number) => any;
     readonly sessionhandle_exportSession: (a: number) => [number, number];
     readonly sessionhandle_pubky: (a: number) => [number, number];
+    readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
+    readonly signOutSession: (a: number) => any;
     readonly maxNoiseMessageLen: () => number;
     readonly noiseTagLen: () => number;
     readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
-    readonly generateNoiseSecretKey: () => [number, number];
-    readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly memorynoisesession_close: (a: number) => void;
     readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
     readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
@@ -447,9 +510,9 @@ export interface InitOutput {
     readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
     readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
     readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
-    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
-    readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
-    readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
+    readonly sb2Decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly sb2VerifySignature: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly x25519GenerateKeypair: () => any;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: any) => any;

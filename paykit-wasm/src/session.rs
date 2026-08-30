@@ -10,7 +10,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
 use crate::error::{js_err, js_err_msg, js_err_named};
-use crate::keys::{public_key_from_z32, secret_key_from_slice};
+use crate::keys::{public_key_from_z32, public_key_from_z32_or_hex, secret_key_from_slice};
 
 /// The Paykit storage tree cookie-resume requires in the session scope.
 const PAYKIT_SCOPE: &str = "/pub/paykit/";
@@ -258,6 +258,84 @@ impl SessionHandle {
     pub fn export_session(&self) -> String {
         self.inner.export()
     }
+
+    /// Authenticated PUT of `body` at an absolute homeserver path (e.g.
+    /// `/pub/hypercolor.app/v1/…`). The browser attaches the HTTP-only
+    /// session cookie; this is not a Cookie-header constructor and must
+    /// never be fed `exportSession()` as a bearer.
+    #[wasm_bindgen(js_name = putPublic)]
+    pub fn put_public(&self, path: &str, body: &[u8]) -> js_sys::Promise {
+        let session = self.inner.clone();
+        let path = path.to_string();
+        let body = body.to_vec();
+        future_to_promise(async move {
+            session
+                .storage()
+                .put(path, body)
+                .await
+                .map_err(|err| js_err("put failed", err))?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
+    /// Authenticated DELETE of an absolute homeserver path. Cookie-authorized
+    /// the same way as `putPublic`.
+    #[wasm_bindgen(js_name = deletePublic)]
+    pub fn delete_public(&self, path: &str) -> js_sys::Promise {
+        let session = self.inner.clone();
+        let path = path.to_string();
+        future_to_promise(async move {
+            session
+                .storage()
+                .delete(path)
+                .await
+                .map_err(|err| js_err("delete failed", err))?;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+}
+
+/// Unauthenticated public GET of `{ownerPubky}{path}`.
+///
+/// `ownerPubky` accepts z-base-32 or 64-hex. A homeserver 404 or 410
+/// resolves to `undefined`; other failures reject. Used to fetch a
+/// paykit-connect SB2 handoff from `/pub/`.
+#[wasm_bindgen(js_name = publicGet)]
+pub fn public_get(
+    client: &PubkyClient,
+    owner_pubky: &str,
+    path: &str,
+) -> Result<js_sys::Promise, JsValue> {
+    let owner = public_key_from_z32_or_hex(owner_pubky, "owner")?;
+    let path = path.to_string();
+    let storage = client.inner.public_storage();
+    Ok(future_to_promise(async move {
+        match storage.get((owner, path)).await {
+            Ok(resp) => {
+                let bytes = resp
+                    .bytes()
+                    .await
+                    .map_err(|err| js_err("public get failed", err))?;
+                Ok(js_sys::Uint8Array::from(bytes.as_ref()).into())
+            }
+            Err(err) if is_absent(&err) => Ok(JsValue::UNDEFINED),
+            Err(err) => Err(js_err("public get failed", err)),
+        }
+    }))
+}
+
+/// Sign out and invalidate the homeserver session (cookie) server-side.
+/// Consumes the `SessionHandle`.
+#[wasm_bindgen(js_name = signOutSession)]
+pub fn sign_out_session(session: SessionHandle) -> js_sys::Promise {
+    let inner = session.inner;
+    future_to_promise(async move {
+        inner
+            .signout()
+            .await
+            .map_err(|(err, _restored)| js_err("signout failed", err))?;
+        Ok(JsValue::UNDEFINED)
+    })
 }
 
 /// Classify a failed cookie-resume revalidation. `AuthError::RequestExpired`
@@ -265,6 +343,14 @@ impl SessionHandle {
 /// behind these cookies" signal (404 on `/session`); 401/403 statuses carry
 /// the same meaning from stricter servers. Everything else (transport,
 /// unexpected server errors) stays untyped so callers treat it as retryable.
+fn is_absent(err: &pubky::Error) -> bool {
+    matches!(
+        err,
+        pubky::Error::Request(RequestError::Server { status, .. })
+            if status.as_u16() == 404 || status.as_u16() == 410
+    )
+}
+
 fn map_cookie_resume_error(err: pubky::Error) -> JsValue {
     match &err {
         pubky::Error::Authentication(AuthError::RequestExpired) => {
@@ -364,5 +450,25 @@ mod tests {
                 .expect("valid SessionInfo bytes");
         assert_eq!(decoded.public_key(), &public_key);
         assert!(decoded.capabilities().is_empty());
+    }
+
+    #[test]
+    fn is_absent_matches_not_found_and_gone() {
+        use pubky::StatusCode;
+        let not_found = pubky::Error::Request(RequestError::Server {
+            status: StatusCode::NOT_FOUND,
+            message: "gone".into(),
+        });
+        let gone = pubky::Error::Request(RequestError::Server {
+            status: StatusCode::GONE,
+            message: "gone".into(),
+        });
+        let forbidden = pubky::Error::Request(RequestError::Server {
+            status: StatusCode::FORBIDDEN,
+            message: "no".into(),
+        });
+        assert!(is_absent(&not_found));
+        assert!(is_absent(&gone));
+        assert!(!is_absent(&forbidden));
     }
 }

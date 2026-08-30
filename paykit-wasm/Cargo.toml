@@ -21,6 +21,10 @@ pubky = "0.8.0"
 # `Capability` are the same types (cargo unifies them); used by
 # `resumeSessionFromCookie` to synthesize the revalidation payload.
 pubky-common = "0.8.0"
+# SB2 / X25519 primitives for the Hypercolor handoff path. crates.io
+# pubky-noise 0.1.0-rc5 does not re-export sealed_blob; default features
+# only (secure-mem/region is native mlock and breaks wasm32).
+pubky-crypto = { git = "https://github.com/BitcoinErrorLog/pubky-crypto.git", rev = "01eb3e6575cf8c707ad0675962581e13aa4da0f0" }
 pubky-noise = "0.1.0-rc5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -44,3 +48,6 @@ uuid = { version = "1", features = ["js"] }
 # only provides with its `stream` feature; pubky's own wasm32 dependency
 # declaration omits it. Feature unification turns it on for the whole graph.
 reqwest = { version = "0.13", default-features = false, features = ["stream"] }
+
+[dev-dependencies]
+ed25519-dalek = "2"

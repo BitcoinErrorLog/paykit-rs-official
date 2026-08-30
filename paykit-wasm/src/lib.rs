@@ -12,6 +12,10 @@
 //! - an in-memory Noise session (`MemoryNoiseSession`) exposing the same
 //!   `pubky_noise` crypto without homeserver I/O, used by the package smoke
 //!   test to prove the compiled crypto end to end.
+//! - SB2 verify/decrypt and X25519 key generation (`pubky-crypto`, no
+//!   crypto reimplemented here),
+//! - session-scoped public PUT/DELETE, unauthenticated public GET, and
+//!   homeserver sign-out.
 //!
 //! The payments surface of paykit-lib (payment requests, receipts, private
 //! payment lists, endpoint routing) is intentionally not bound.
@@ -21,12 +25,14 @@ mod keys;
 mod link;
 mod marker;
 mod memory;
+mod sb2;
 mod session;
 
 pub use keys::*;
 pub use link::*;
 pub use marker::*;
 pub use memory::*;
+pub use sb2::*;
 pub use session::*;
 
 use wasm_bindgen::prelude::*;
