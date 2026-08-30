@@ -37,6 +37,7 @@ zeroize = "1"
 url = "2"
 
 [dev-dependencies]
+base64 = "0.22"
 pubky-testnet = { version = "0.8.0", features = ["embedded-postgres"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 

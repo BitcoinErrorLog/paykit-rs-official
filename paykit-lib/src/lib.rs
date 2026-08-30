@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![deny(rustdoc::broken_intra_doc_links)]
 
+mod attachment_aead;
 mod encrypted_link;
 mod encrypted_link_recovery;
 mod error;
@@ -17,6 +18,11 @@ mod receiver_marker;
 mod shared_wire;
 mod validation;
 
+#[doc(inline)]
+pub use attachment_aead::{
+    decrypt_attachment, encrypt_attachment, generate_attachment_key, AttachmentCiphertext,
+    AttachmentKey, ATTACHMENT_ENCRYPTION_ALGORITHM,
+};
 #[doc(inline)]
 pub use encrypted_link::{
     accept_encrypted_link, advance_handshake, clear_encrypted_link_outbox, close_encrypted_link,
