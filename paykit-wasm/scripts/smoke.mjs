@@ -34,6 +34,14 @@ import init, {
   publishReceiverMarker,
   getReceiverMarker,
   removeReceiverMarker,
+  setPaymentEndpoint,
+  removePaymentEndpoint,
+  getPaymentEndpoint,
+  getPaymentList,
+  listPaymentMethods,
+  listPaykitReceiverPaths,
+  parsePrivatePaymentListJson,
+  serializePrivatePaymentListJson,
   maxNoiseMessageLen,
   noiseTagLen,
   x25519GenerateKeypair,
@@ -71,6 +79,14 @@ ok("messaging API surface exported", () => {
     publishReceiverMarker,
     getReceiverMarker,
     removeReceiverMarker,
+    setPaymentEndpoint,
+    removePaymentEndpoint,
+    getPaymentEndpoint,
+    getPaymentList,
+    listPaymentMethods,
+    listPaykitReceiverPaths,
+    parsePrivatePaymentListJson,
+    serializePrivatePaymentListJson,
     maxNoiseMessageLen,
     noiseTagLen,
     x25519GenerateKeypair,
@@ -92,6 +108,7 @@ ok("messaging API surface exported", () => {
     assert.equal(typeof cls, "function");
   }
   assert.equal(typeof EncryptedLinkHandle.prototype.sendPrivateApplicationMessageJson, "function");
+  assert.equal(typeof EncryptedLinkHandle.prototype.sendPrivatePaymentList, "function");
   assert.equal(typeof EncryptedLinkHandle.prototype.receivePrivateApplicationMessages, "function");
   assert.equal(typeof EncryptedLinkHandle.prototype.snapshot, "function");
   assert.equal(typeof LinkHandshakeHandle.prototype.advance, "function");
@@ -252,6 +269,40 @@ ok("PubkyClient constructs and auth flow yields a pubkyauth URL", () => {
     assert.ok(rejected !== null && /invalid pubky public key/.test(rejected), `got: ${rejected}`);
   });
 }
+
+ok("private payment list serialize/parse round-trips and rejects reserved ids", () => {
+  const json = serializePrivatePaymentListJson({
+    lightning: "ln...",
+    onchain: "bc1qexample",
+  });
+  const parsed = parsePrivatePaymentListJson(json);
+  assert.equal(parsed.lightning, "ln...");
+  assert.equal(parsed.onchain, "bc1qexample");
+  const wire = JSON.parse(json);
+  assert.equal(wire.version, 1);
+  assert.equal(wire.kind, "paykit.private_payment_list");
+  assert.throws(
+    () => parsePrivatePaymentListJson('{"lightning":"ln..."}'),
+    /failed to parse Private Payment List/,
+  );
+  assert.throws(
+    () => serializePrivatePaymentListJson({ private: "secret" }),
+    /invalid payment endpoint identifier/,
+  );
+});
+
+ok("getPaymentEndpoint rejects an invalid identifier before any I/O", () => {
+  const client = new PubkyClient();
+  const knownZ32 = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+  assert.throws(
+    () => getPaymentEndpoint(client, knownZ32, "bitkit/wallet", ".."),
+    /invalid payment endpoint identifier/,
+  );
+  assert.throws(
+    () => getPaymentList(client, knownZ32, "not-a-receiver"),
+    /invalid payment receiver path/,
+  );
+});
 
 alice.close();
 bob.close();

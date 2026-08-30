@@ -1,6 +1,7 @@
-//! Browser WASM binding for the Paykit Encrypted Link messaging surface.
+//! Browser WASM binding for the Paykit Encrypted Link messaging surface
+//! and public Payment Endpoint routing.
 //!
-//! Scope: messaging only. This crate binds
+//! This crate binds
 //! - receiver-scoped Noise key generation (no Pubky identity key required),
 //! - homeserver session acquisition (pubkyauth flow, plus signer helpers for
 //!   dev/testnet use),
@@ -15,16 +16,21 @@
 //! - SB2 verify/decrypt and X25519 key generation (`pubky-crypto`, no
 //!   crypto reimplemented here),
 //! - session-scoped public PUT/DELETE, unauthenticated public GET, and
-//!   homeserver sign-out.
+//!   homeserver sign-out,
+//! - public Payment Endpoint publish/fetch/list/remove (paykit-lib writers;
+//!   paths stay inside `PAYKIT_PATH_PREFIX`),
+//! - Private Payment List serialize/parse and send over an established
+//!   Encrypted Link (`set_private_payment_list`).
 //!
-//! The payments surface of paykit-lib (payment requests, receipts, private
-//! payment lists, endpoint routing) is intentionally not bound.
+//! Not bound: Payment Requests, receipts, and the paykit-sdk adapter
+//! runtime (those need stateful SDK machinery this crate does not host).
 
 mod error;
 mod keys;
 mod link;
 mod marker;
 mod memory;
+mod payments;
 mod sb2;
 mod session;
 
@@ -32,6 +38,7 @@ pub use keys::*;
 pub use link::*;
 pub use marker::*;
 pub use memory::*;
+pub use payments::*;
 pub use sb2::*;
 pub use session::*;
 

@@ -4,8 +4,8 @@ use std::rc::Rc;
 use paykit_lib::{
     accept_encrypted_link, advance_handshake, clear_encrypted_link_outbox, close_encrypted_link,
     initiate_encrypted_link, restore_encrypted_link, restore_encrypted_link_handshake,
-    EncryptedLink, EncryptedLinkHandshake, EncryptedLinkHandshakeSnapshot, EncryptedLinkSnapshot,
-    HandshakeProgress, PaykitReceiverPath,
+    set_private_payment_list, EncryptedLink, EncryptedLinkHandshake,
+    EncryptedLinkHandshakeSnapshot, EncryptedLinkSnapshot, HandshakeProgress, PaykitReceiverPath,
 };
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
@@ -326,6 +326,34 @@ impl EncryptedLinkHandle {
             result.map_err(|err| js_err("failed to send Private Application Message", err))?;
             Ok(JsValue::UNDEFINED)
         })
+    }
+
+    /// Encrypt and send a complete Private Payment List over this link.
+    ///
+    /// `endpoints` is a plain object `{ identifier: payload }` — the full
+    /// desired list, not a patch. Binds paykit-lib
+    /// `set_private_payment_list`. There is no homeserver GET for private
+    /// endpoints; the counterparty reads them via
+    /// `receivePrivateApplicationMessages` + `parsePrivatePaymentListJson`.
+    /// Do not log payloads. Session and link lifetime remain the caller's
+    /// responsibility.
+    #[wasm_bindgen(js_name = sendPrivatePaymentList)]
+    pub fn send_private_payment_list(
+        &self,
+        endpoints: js_sys::Object,
+    ) -> Result<js_sys::Promise, JsValue> {
+        let list = crate::payments::private_payment_list_from_js(&endpoints)?;
+        let cell = self.inner.clone();
+        Ok(future_to_promise(async move {
+            let mut link = cell
+                .borrow_mut()
+                .take()
+                .ok_or_else(|| js_err_msg("link is closed or an operation is in flight"))?;
+            let result = set_private_payment_list(&mut link, &list).await;
+            cell.borrow_mut().replace(link);
+            result.map_err(|err| js_err("failed to send Private Payment List", err))?;
+            Ok(JsValue::UNDEFINED)
+        }))
     }
 
     /// Receive available Private Application Messages in stream order.

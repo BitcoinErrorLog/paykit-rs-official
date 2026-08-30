@@ -1,6 +1,7 @@
 # paykit-wasm
 
-Browser WASM binding for the **Paykit Encrypted Link messaging surface**.
+Browser WASM binding for the **Paykit Encrypted Link messaging surface** and
+**public Payment Endpoints**.
 
 This crate compiles `paykit-lib`'s Encrypted Link APIs (and the `pubky`
 session/auth machinery they ride on) to `wasm32-unknown-unknown` and packages
@@ -23,22 +24,25 @@ uncovered (notably the `startAuthFlow` signer path and mid-handshake restore).
 Built on a fork of `pubky/paykit-rs`; upstream is pre-1.0 and unreviewed — see
 "Provenance" and "Known limitations" before using it for anything real.
 
-## What is bound (messaging only)
+## What is bound
 
 | Area | JS API |
 | --- | --- |
 | Receiver Noise keys | `generateNoiseSecretKey()`, `noisePublicKeyFromSecret()` (mirror `paykit_sdk::ReceiverNoiseSecretKey`) |
 | Client / sessions | `PubkyClient` (`new`, `testnet`), `startAuthFlow(caps)` → `AuthFlowHandle.authorizationUrl()` / `awaitApproval()`; `SessionHandle.exportSession()` (secret-free metadata) + `PubkyClient.restoreSession()` (revalidates via the browser's HTTP-only session cookie) for reload survival; `PubkyClient.resumeSessionFromCookie(pubky)` — zero-approval session resume purely from the browser's existing cookie when the sign-in grant already covers `/pub/paykit/:rw`, with typed rejections (`SessionResumeUnauthorized` / `SessionResumePubkyMismatch` / `SessionResumeScopeMissing` via `Error.name`); `signinWithSecret` / `signupWithSecret` (dev/test only) |
-| Receiver discovery | `publishReceiverMarker`, `getReceiverMarker`, `removeReceiverMarker` |
+| Receiver discovery | `publishReceiverMarker`, `getReceiverMarker`, `removeReceiverMarker`, `listPaykitReceiverPaths` |
 | Handshake | `initiateEncryptedLink`, `acceptEncryptedLink`, `LinkHandshakeHandle.advance()/snapshot()/setMaxRecoveryAttempts()`, `restoreEncryptedLinkHandshake` |
 | Messaging | `EncryptedLinkHandle.sendPrivateApplicationMessageJson()` (accepts unknown kinds by contract), `receivePrivateApplicationMessages()`, `snapshot()`, `setMaxSendRetries()`, `close()`, `restoreEncryptedLink`, `clearEncryptedLinkOutbox` |
+| Public Payment Endpoints | `setPaymentEndpoint`, `removePaymentEndpoint`, `getPaymentEndpoint` (404 → `undefined`), `getPaymentList` / `listPaymentMethods` (404 → empty). Paths are built inside paykit-lib (`PAYKIT_PATH_PREFIX`, `/pub/paykit/v0`) — callers do not supply homeserver paths. |
+| Private Payment Lists | `serializePrivatePaymentListJson`, `parsePrivatePaymentListJson`, `EncryptedLinkHandle.sendPrivatePaymentList()` (`set_private_payment_list`). There is no homeserver GET for private endpoints; inbound lists arrive as Encrypted Link messages. |
 | Constants | `maxNoiseMessageLen()` (1000), `noiseTagLen()` (16) |
 | Test/vector surface | `MemoryNoiseSession` — the same `pubky_noise::snow_crypto::DataLinkContext` crypto (Noise `XX_25519_ChaChaPoly_SHA256`) with caller-shuttled packets instead of homeserver outboxes; used by the smoke test |
 
-**Not bound (deliberately):** the entire payments surface of paykit-lib
-(payment requests/acceptance/rejection/cancellation/proof, receipts, private
-payment lists, payment endpoints, pubky routing beyond receiver markers), and
-the `paykit-sdk` stateful runtime including `SdkBackupState`.
+**Not bound (deliberately):** Payment Requests (request/accept/reject/cancel/proof),
+receipts, and the `paykit-sdk` stateful runtime (`SdkBackupState`, adapter-driven
+`sync_public_endpoints`, `resolve_*_contact_payment`). Those need the SDK
+session/store/adapter loop this crate does not host. Private endpoints are
+Noise messages, not a second encrypted homeserver document type.
 
 ## Quickstart (browser)
 
@@ -154,13 +158,13 @@ additively:
 
 | File | SHA-256 |
 | --- | --- |
-| `pkg/paykit_wasm_bg.wasm` | `cd781e364126312453b014ba3ceb74055a0c3f8b26c70b41e4827a0991ba4096` |
-| `pkg/paykit_wasm.js` | `ee73963f128b8b2667391721b3ed3a025527d4b89ade26cd1522c47cf9746587` |
-| `pkg/paykit_wasm.d.ts` | `c88bda8479479e6dd548542a3b380b7224dcab28cca572936d69cf8013930887` |
-| `pkg/paykit_wasm_bg.wasm.d.ts` | `b390e8c1ebd8ec5ed148bd51aa8891ca7b6688d35fe744b90bd4615cf86cf5bb` |
-| `pkg/package.json` | `374e0391c23bfa4e56d0a2819c6823bc7a1c83a7ca79c9032a5e4cadd40c261a` |
+| `pkg/paykit_wasm_bg.wasm` | `f2f510c9a86137382e9f2f9ee8c51d81dc9d3f61671cbbf36e9cacb5c0fb09d3` |
+| `pkg/paykit_wasm.js` | `534f21849f9e13d40281f4df8ef8433d9f427a50747b284fd60f6b5106a184a2` |
+| `pkg/paykit_wasm.d.ts` | `55529b18a9be11be08bdc39bc603f33a4a59f9314c0265caabb07c9a70a0c2c9` |
+| `pkg/paykit_wasm_bg.wasm.d.ts` | `0ebcf3078c9b2705231c5a51c94cdc7bd3dc42cb9f15226252b2888607f8c296` |
+| `pkg/package.json` | `ecfde395fb97cdeec3cc22768601c483059a7e5b02a842eab260c83e2ef0c60f` |
 
-Generated `pkg/` size: ~1.5 MB (wasm ~1.45 MB). `wasm-opt` output is not
+Generated `pkg/` size: ~1.8 MB (wasm ~1.7 MB). `wasm-opt` output is not
 guaranteed bit-identical across platforms/toolchains; treat these checksums as
 a record of this build and re-record when the pin or toolchain changes.
 Consumers should vendor `pkg/` verbatim with a `file:` dependency and a

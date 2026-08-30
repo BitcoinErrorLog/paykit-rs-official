@@ -168,6 +168,26 @@ export class EncryptedLinkHandle {
         return ret;
     }
     /**
+     * Encrypt and send a complete Private Payment List over this link.
+     *
+     * `endpoints` is a plain object `{ identifier: payload }` — the full
+     * desired list, not a patch. Binds paykit-lib
+     * `set_private_payment_list`. There is no homeserver GET for private
+     * endpoints; the counterparty reads them via
+     * `receivePrivateApplicationMessages` + `parsePrivatePaymentListJson`.
+     * Do not log payloads. Session and link lifetime remain the caller's
+     * responsibility.
+     * @param {object} endpoints
+     * @returns {Promise<any>}
+     */
+    sendPrivatePaymentList(endpoints) {
+        const ret = wasm.encryptedlinkhandle_sendPrivatePaymentList(this.__wbg_ptr, endpoints);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Override the automatic send retry limit for transient homeserver
      * write failures.
      * @param {number} max
@@ -860,6 +880,56 @@ export function generateNoiseSecretKey() {
 }
 
 /**
+ * Fetch one public Payment Endpoint for `payee` at `receiverPath`.
+ *
+ * Resolves to the payload string, or `undefined` when the endpoint file is
+ * missing or empty (homeserver 404/410). Other transport failures reject.
+ * Session creation is not required; this is an unauthenticated public read.
+ * @param {PubkyClient} client
+ * @param {string} payee_pubky
+ * @param {string} receiver_path_value
+ * @param {string} identifier
+ * @returns {Promise<any>}
+ */
+export function getPaymentEndpoint(client, payee_pubky, receiver_path_value, identifier) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(payee_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(identifier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.getPaymentEndpoint(client.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Fetch a peer's public Payment List (identifier → payload).
+ *
+ * Resolves to a plain object. A missing directory or empty list is `{}`
+ * (list ops treat 404 as empty). Invalid UTF-8 or unparseable paths reject.
+ * @param {PubkyClient} client
+ * @param {string} payee_pubky
+ * @param {string} receiver_path_value
+ * @returns {Promise<any>}
+ */
+export function getPaymentList(client, payee_pubky, receiver_path_value) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(payee_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.getPaymentList(client.__wbg_ptr, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Fetch a counterparty's public Paykit Receiver Marker. Resolves to
  * `{ receiverPath, noisePublicKey, capabilities: { privatePayments,
  * paymentRequests, receipts, outgoingPayments } }`, or `undefined` if the
@@ -919,6 +989,50 @@ export function initiateEncryptedLink(session, sender_noise_secret_key, receiver
 }
 
 /**
+ * List publicly advertised Paykit receiver paths for a Pubky identity.
+ *
+ * Discovery helper only — payment flows should still use the exact
+ * receiver path selected by the app. Resolves to a sorted string array;
+ * a missing tree is `[]`.
+ * @param {PubkyClient} client
+ * @param {string} owner_pubky
+ * @returns {Promise<any>}
+ */
+export function listPaykitReceiverPaths(client, owner_pubky) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.listPaykitReceiverPaths(client.__wbg_ptr, ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * List the Payment Endpoint Identifiers a peer has published publicly.
+ *
+ * Same fetch as `getPaymentList`; resolves to a sorted string array.
+ * A missing directory is `[]`.
+ * @param {PubkyClient} client
+ * @param {string} payee_pubky
+ * @param {string} receiver_path_value
+ * @returns {Promise<any>}
+ */
+export function listPaymentMethods(client, payee_pubky, receiver_path_value) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(payee_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.listPaymentMethods(client.__wbg_ptr, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Maximum plaintext size of one Private Application Message, in bytes.
  *
  * This is `pubky_noise`'s fixed message buffer (1000 bytes). JSON envelope
@@ -969,6 +1083,25 @@ export function noiseTagLen() {
 }
 
 /**
+ * Parse a versioned `paykit.private_payment_list` JSON message.
+ *
+ * Returns `{ identifier: payload, ... }`. There is no homeserver GET for
+ * private endpoints — they arrive as Encrypted Link messages. Rejects
+ * invalid identifiers, unknown versions/kinds, or malformed JSON.
+ * @param {string} json
+ * @returns {object}
+ */
+export function parsePrivatePaymentListJson(json) {
+    const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.parsePrivatePaymentListJson(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Unauthenticated public GET of `{ownerPubky}{path}`.
  *
  * `ownerPubky` accepts z-base-32 or 64-hex. A homeserver 404 or 410
@@ -1015,6 +1148,30 @@ export function publishReceiverMarker(session, receiver_path_value, noise_public
     const ptr1 = passStringToWasm0(noise_public_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ret = wasm.publishReceiverMarker(session.__wbg_ptr, ptr0, len0, ptr1, len1, private_payments, payment_requests, receipts, outgoing_payments);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Remove a public Payment Endpoint owned by the session.
+ *
+ * A missing endpoint is success (paykit-lib treats homeserver 404 as
+ * already absent). Session creation and capability scope remain the
+ * caller's responsibility.
+ * @param {SessionHandle} session
+ * @param {string} receiver_path_value
+ * @param {string} identifier
+ * @returns {Promise<any>}
+ */
+export function removePaymentEndpoint(session, receiver_path_value, identifier) {
+    _assertClass(session, SessionHandle);
+    const ptr0 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(identifier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.removePaymentEndpoint(session.__wbg_ptr, ptr0, len0, ptr1, len1);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -1156,6 +1313,62 @@ export function sb2VerifySignature(envelope, owner_pubky, canonical_path) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return ret[0] !== 0;
+}
+
+/**
+ * Serialize a complete Private Payment List to its versioned JSON wire form.
+ *
+ * `endpoints` is a plain object `{ identifier: payload }`. The result is
+ * the full latest-state message (`version` 1, kind
+ * `paykit.private_payment_list`), not a patch. Do not log payloads.
+ * @param {object} endpoints
+ * @returns {string}
+ */
+export function serializePrivatePaymentListJson(endpoints) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ret = wasm.serializePrivatePaymentListJson(endpoints);
+        var ptr1 = ret[0];
+        var len1 = ret[1];
+        if (ret[3]) {
+            ptr1 = 0; len1 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred2_0 = ptr1;
+        deferred2_1 = len1;
+        return getStringFromWasm0(ptr1, len1);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
+ * Publish or update a public Payment Endpoint for the session owner.
+ *
+ * Authenticated PUT via the session. Path construction stays inside
+ * paykit-lib (`PAYKIT_PATH_PREFIX`). Session creation, capability scope
+ * (`/pub/paykit/:rw`), and key rotation remain the caller's
+ * responsibility. Do not log `payload`.
+ * @param {SessionHandle} session
+ * @param {string} receiver_path_value
+ * @param {string} identifier
+ * @param {string} payload
+ * @returns {Promise<any>}
+ */
+export function setPaymentEndpoint(session, receiver_path_value, identifier, payload) {
+    _assertClass(session, SessionHandle);
+    const ptr0 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(identifier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(payload, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.setPaymentEndpoint(session.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**
@@ -1309,6 +1522,10 @@ function __wbg_get_imports() {
             const ret = arg0[arg1 >>> 0];
             return ret;
         },
+        __wbg_get_ff5f1fb220233477: function() { return handleError(function (arg0, arg1) {
+            const ret = Reflect.get(arg0, arg1);
+            return ret;
+        }, arguments); },
         __wbg_has_3f87d148146a0f4e: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.has(arg0, arg1);
             return ret;
@@ -1331,7 +1548,15 @@ function __wbg_get_imports() {
             const ret = Array.isArray(arg0);
             return ret;
         },
+        __wbg_keys_e84d806594765111: function(arg0) {
+            const ret = Object.keys(arg0);
+            return ret;
+        },
         __wbg_length_e6e1633fbea6cfa9: function(arg0) {
+            const ret = arg0.length;
+            return ret;
+        },
+        __wbg_length_fae3e439140f48a4: function(arg0) {
             const ret = arg0.length;
             return ret;
         },
@@ -1552,12 +1777,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1211, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1249, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1037, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1075, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1);
             return ret;
         },
