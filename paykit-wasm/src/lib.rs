@@ -15,6 +15,7 @@
 //!   test to prove the compiled crypto end to end.
 //! - SB2 encrypt/sign/verify/decrypt, inbox_kid, and X25519 key generation
 //!   (`pubky-crypto`, no crypto reimplemented here),
+//! - UKD AppCert signature verification (`verifyAppCert`),
 //! - session-scoped public PUT/DELETE, unauthenticated public GET, and
 //!   homeserver sign-out,
 //! - public Payment Endpoint publish/fetch/list/remove (paykit-lib writers;
@@ -25,6 +26,7 @@
 //! Not bound: Payment Requests, receipts, and the paykit-sdk adapter
 //! runtime (those need stateful SDK machinery this crate does not host).
 
+mod app_cert;
 mod error;
 mod keys;
 mod link;
@@ -34,6 +36,7 @@ mod payments;
 mod sb2;
 mod session;
 
+pub use app_cert::*;
 pub use keys::*;
 pub use link::*;
 pub use marker::*;

@@ -37,6 +37,7 @@ Built on a fork of `pubky/paykit-rs`; upstream is pre-1.0 and unreviewed — see
 | Private Payment Lists | `serializePrivatePaymentListJson`, `parsePrivatePaymentListJson`, `EncryptedLinkHandle.sendPrivatePaymentList()` (`set_private_payment_list`). There is no homeserver GET for private endpoints; inbound lists arrive as Encrypted Link messages. |
 | Constants | `maxNoiseMessageLen()` (1000), `noiseTagLen()` (16) |
 | SB2 handoff | `sb2Encrypt`, `sb2Sign`, `sb2VerifySignature`, `sb2Decrypt`, `computeInboxKid`, `x25519GenerateKeypair` — thin wrappers over `pubky-crypto` (`Sb2::encrypt_with_cert_id` / `sign` / `verify_signature` / `decrypt`). Owner/sender/recipient peerids accept z-base-32 or 64-hex. Encoder rejects plaintext over 64 KiB and `msg_id` over 128 ASCII characters. |
+| UKD AppCert | `verifyAppCert(issuerPubky, certBodyHex, sigHex)` — binds `pubky_crypto::ukd::verify_app_cert`; returns lowercase 32-char `cert_id` hex. |
 | Test/vector surface | `MemoryNoiseSession` — the same `pubky_noise::snow_crypto::DataLinkContext` crypto (Noise `XX_25519_ChaChaPoly_SHA256`) with caller-shuttled packets instead of homeserver outboxes; used by the smoke test |
 
 **Not bound (deliberately):** Payment Requests (request/accept/reject/cancel/proof),
