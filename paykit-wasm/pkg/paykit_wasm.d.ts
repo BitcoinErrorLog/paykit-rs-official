@@ -221,6 +221,13 @@ export class PubkyClient {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Move an existing identity to `homeserverZ32` and republish `_pubky`.
+     *
+     * Dev/test helper. Signs up on that host, or signs in there if the user
+     * already exists (HTTP 409). Host-local data is not copied.
+     */
+    migrateHomeserverWithSecret(identity_secret_key: Uint8Array, homeserver_z32: string, signup_token?: string | null): Promise<any>;
+    /**
      * Construct with mainnet defaults.
      */
     constructor();
@@ -569,22 +576,30 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
-    readonly maxNoiseMessageLen: () => number;
-    readonly memorynoisesession_close: (a: number) => void;
-    readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly memorynoisesession_isHandshakeComplete: (a: number) => number;
-    readonly memorynoisesession_isTransport: (a: number) => number;
-    readonly memorynoisesession_linkIdHex: (a: number) => [number, number];
-    readonly memorynoisesession_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
-    readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
-    readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
-    readonly noiseTagLen: () => number;
+    readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
+    readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
+    readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
+    readonly authflowhandle_authorizationUrl: (a: number) => [number, number];
+    readonly authflowhandle_awaitApproval: (a: number) => any;
+    readonly pubkyclient_migrateHomeserverWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly pubkyclient_new: () => [number, number, number];
+    readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
+    readonly pubkyclient_resumeSessionFromCookie: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_testnet: () => [number, number, number];
+    readonly publicGet: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly sessionhandle_deletePublic: (a: number, b: number, c: number) => any;
+    readonly sessionhandle_exportSession: (a: number) => [number, number];
+    readonly sessionhandle_pubky: (a: number) => [number, number];
+    readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
+    readonly signOutSession: (a: number) => any;
     readonly computeInboxKid: (a: number, b: number) => [number, number, number, number];
     readonly generateNoiseSecretKey: () => [number, number];
+    readonly maxNoiseMessageLen: () => number;
     readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
+    readonly noiseTagLen: () => number;
     readonly sb2Decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
     readonly sb2Encrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: bigint, u: number, v: bigint, w: number, x: number) => [number, number, number, number];
     readonly sb2Sign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
@@ -621,24 +636,17 @@ export interface InitOutput {
     readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
     readonly serializePrivatePaymentListJson: (a: any) => [number, number, number, number];
     readonly setPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
-    readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
-    readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
-    readonly authflowhandle_authorizationUrl: (a: number) => [number, number];
-    readonly authflowhandle_awaitApproval: (a: number) => any;
-    readonly pubkyclient_new: () => [number, number, number];
-    readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
-    readonly pubkyclient_resumeSessionFromCookie: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_testnet: () => [number, number, number];
-    readonly publicGet: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly sessionhandle_deletePublic: (a: number, b: number, c: number) => any;
-    readonly sessionhandle_exportSession: (a: number) => [number, number];
-    readonly sessionhandle_pubky: (a: number) => [number, number];
-    readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
-    readonly signOutSession: (a: number) => any;
+    readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
+    readonly memorynoisesession_close: (a: number) => void;
+    readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly memorynoisesession_isHandshakeComplete: (a: number) => number;
+    readonly memorynoisesession_isTransport: (a: number) => number;
+    readonly memorynoisesession_linkIdHex: (a: number) => [number, number];
+    readonly memorynoisesession_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
+    readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
+    readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: any) => any;

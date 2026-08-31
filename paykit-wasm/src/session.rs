@@ -197,6 +197,29 @@ impl PubkyClient {
             Ok(SessionHandle { inner: session }.into())
         }))
     }
+
+    /// Move an existing identity to `homeserverZ32` and republish `_pubky`.
+    ///
+    /// Dev/test helper. Signs up on that host, or signs in there if the user
+    /// already exists (HTTP 409). Host-local data is not copied.
+    #[wasm_bindgen(js_name = migrateHomeserverWithSecret)]
+    pub fn migrate_homeserver_with_secret(
+        &self,
+        identity_secret_key: &[u8],
+        homeserver_z32: &str,
+        signup_token: Option<String>,
+    ) -> Result<js_sys::Promise, JsValue> {
+        let secret = secret_key_from_slice(identity_secret_key)?;
+        let homeserver = public_key_from_z32(homeserver_z32, "homeserver")?;
+        let signer = self.inner.signer(pubky::Keypair::from_secret(&secret));
+        Ok(future_to_promise(async move {
+            let session = signer
+                .migrate_homeserver(&homeserver, signup_token.as_deref())
+                .await
+                .map_err(|err| js_err("homeserver migration failed", err))?;
+            Ok(SessionHandle { inner: session }.into())
+        }))
+    }
 }
 
 /// An in-progress pubkyauth flow.

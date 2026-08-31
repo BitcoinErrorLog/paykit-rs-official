@@ -1,9 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["paykit-lib", "paykit-ffi", "paykit-sdk", "paykit-wasm"]
+members = ["paykit-lib", "paykit-ffi", "paykit-sdk", "paykit-wasm", "vendor/pubky"]
 
 [patch.crates-io]
 rustls-platform-verifier-android = { path = "vendor/rustls-platform-verifier-android" }
+# crates.io pubky 0.8.0 plus homeserver-migration fixes (CAS retry, migrate,
+# WASM ICANN/HTTP endpoint selection). The BitcoinErrorLog pubky-core main
+# tree is still 0.6.0-rc.6 and cannot be a path dep of this workspace.
+pubky = { path = "vendor/pubky" }
 # snow 0.10.0 with a one-line manifest fix ("ring/std" -> "ring?/std") so the
 # unused optional ring dependency is not force-enabled by the default `std`
 # feature. Required to build paykit-wasm for wasm32-unknown-unknown without a

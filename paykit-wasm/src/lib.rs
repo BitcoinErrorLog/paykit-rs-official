@@ -4,7 +4,7 @@
 //! This crate binds
 //! - receiver-scoped Noise key generation (no Pubky identity key required),
 //! - homeserver session acquisition (pubkyauth flow, plus signer helpers for
-//!   dev/testnet use),
+//!   dev/testnet use, including `migrateHomeserverWithSecret`),
 //! - Paykit Receiver Marker publish/fetch/remove (counterparty discovery),
 //! - Encrypted Link handshake (initiate/accept/advance/restore),
 //! - Private Application Message send/receive
