@@ -5,7 +5,8 @@ use url::Url;
 use super::PubkySigner;
 use crate::{
     Capabilities, Capability, PubkySession, PublicKey, Result, StatusCode, cross_log,
-    errors::RequestError, util::check_http_status,
+    errors::{AuthError, RequestError},
+    util::check_http_status,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -35,7 +36,9 @@ impl PubkySigner {
         cross_log!(info, "Signing up new account on homeserver {}", homeserver);
         let response = self.signup_or_resume_on(homeserver, signup_token).await?;
         self.publish_signup_homeserver(homeserver).await?;
-        PubkySession::new_from_response(self.client.clone(), response).await
+        let session = PubkySession::new_from_response(self.client.clone(), response).await?;
+        self.ensure_session_matches_identity(&session)?;
+        Ok(session)
     }
 
     /// Move this identity to `homeserver` and republish `_pubky` to point at it.
@@ -181,29 +184,64 @@ impl PubkySigner {
     }
 
     async fn send_signup_request(&self, url: Url, body: Vec<u8>) -> Result<reqwest::Response> {
-        let response = self
-            .client
-            .cross_request(Method::POST, url)
-            .await?
-            .body(body)
-            .send()
-            .await?;
-
-        check_http_status(response).await
+        self.send_homeserver_http(Method::POST, url, body).await
     }
 
     /// Sign in against a specific homeserver, not the `_pubky` mailbox.
     async fn send_session_request(&self, homeserver: &PublicKey) -> Result<reqwest::Response> {
         let mut url = Url::parse(&format!("https://{}", homeserver.z32()))?;
         url.set_path("/session");
-        let response = self
-            .client
-            .cross_request(Method::POST, url)
-            .await?
-            .body(self.root_capability_token().serialize())
-            .send()
-            .await?;
-        check_http_status(response).await
+        self.send_homeserver_http(Method::POST, url, self.root_capability_token().serialize())
+            .await
+    }
+
+    async fn send_homeserver_http(
+        &self,
+        method: Method,
+        url: Url,
+        body: Vec<u8>,
+    ) -> Result<reqwest::Response> {
+        const ATTEMPTS: u32 = 3;
+        let mut last_err = None;
+        for attempt in 1..=ATTEMPTS {
+            match self.client.cross_request(method.clone(), url.clone()).await {
+                Ok(builder) => match builder.body(body.clone()).send().await {
+                    Ok(response) => return check_http_status(response).await,
+                    Err(err) => {
+                        let err = crate::Error::from(err);
+                        if Self::is_retryable_homeserver_transport(&err) && attempt < ATTEMPTS {
+                            crate::actors::pkdns::bounded_publish_backoff(attempt).await;
+                            last_err = Some(err);
+                            continue;
+                        }
+                        return Err(err);
+                    }
+                },
+                Err(err) => {
+                    if Self::is_retryable_homeserver_transport(&err) && attempt < ATTEMPTS {
+                        crate::actors::pkdns::bounded_publish_backoff(attempt).await;
+                        last_err = Some(err);
+                        continue;
+                    }
+                    return Err(err);
+                }
+            }
+        }
+        Err(last_err.expect("homeserver HTTP retry stores the last transport error"))
+    }
+
+    fn is_retryable_homeserver_transport(err: &crate::Error) -> bool {
+        matches!(err, crate::Error::Request(RequestError::Transport(_)))
+    }
+
+    fn ensure_session_matches_identity(&self, session: &PubkySession) -> Result<()> {
+        if session.info().public_key() != &self.keypair.public_key() {
+            return Err(AuthError::Validation(
+                "session public key does not match the signing identity".into(),
+            )
+            .into());
+        }
+        Ok(())
     }
 
     fn is_user_already_exists(err: &crate::Error) -> bool {

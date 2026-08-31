@@ -1,6 +1,6 @@
 [package]
 name = "paykit-wasm"
-version = "0.1.0-rc46"
+version = "0.1.0-rc47"
 authors = ["johnc@synonym.to"]
 description = "Browser WASM binding for Paykit Encrypted Links and Payment Endpoints"
 license = "MIT"

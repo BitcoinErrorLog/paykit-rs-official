@@ -3682,7 +3682,7 @@ dependencies = [
 
 [[package]]
 name = "paykit-wasm"
-version = "0.1.0-rc46"
+version = "0.1.0-rc47"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek 2.2.0",
@@ -4203,6 +4203,7 @@ dependencies = [
  "http-relay",
  "httpdate",
  "httpmock",
+ "js-sys",
  "log",
  "pkarr",
  "pubky-common",
@@ -4212,6 +4213,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-time",
 ]

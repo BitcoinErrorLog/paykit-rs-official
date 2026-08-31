@@ -242,28 +242,36 @@ impl Pkdns {
         // 4) Publish with a bounded retry. CAS/concurrency failures re-resolve
         // the latest packet so the next compare-and-swap is not stuck on a
         // stale timestamp (`publish_homeserver_force` and `IfStale` share this).
-        self.publish_with_retries(kp, &pubky, &host_str, existing)
-            .await
+        self.publish_with_retries(
+            kp,
+            &pubky,
+            &host_str,
+            existing,
+            matches!(mode, PublishMode::Force),
+        )
+        .await
     }
 
     async fn publish_homeserver_inner(
         &self,
         keypair: &Keypair,
         host: &str,
-        existing: Option<SignedPacket>,
+        existing: Option<&SignedPacket>,
+        cas: Option<Timestamp>,
     ) -> Result<()> {
-        let signed_packet = Self::build_homeserver_packet(keypair, host, existing.as_ref())?;
+        let signed_packet = Self::build_homeserver_packet(keypair, host, existing)?;
 
         cross_log!(
             debug,
-            "Publishing `_pubky` packet for {} targeting host {}",
+            "Publishing `_pubky` packet for {} targeting host {} (cas={:?})",
             keypair.public_key(),
-            host
+            host,
+            cas
         );
 
         self.client
             .pkarr()
-            .publish(&signed_packet, existing.map(|s| s.timestamp()))
+            .publish(&signed_packet, cas)
             .await
             .map_err(PkarrError::from)?;
 
@@ -344,18 +352,22 @@ impl Pkdns {
         pubky: &PublicKey,
         host: &str,
         mut existing: Option<SignedPacket>,
+        force: bool,
     ) -> Result<()> {
         let mut last_err = None;
+        let mut saw_cas = false;
 
         for attempt in 1..=PUBLISH_MAX_ATTEMPTS {
+            let cas = cas_timestamp_for_attempt(existing.as_ref(), force, saw_cas, attempt);
             cross_log!(
                 info,
-                "Publishing homeserver for {} (attempt {attempt}) -> host {}",
+                "Publishing homeserver for {} (attempt {attempt}) -> host {} cas={:?}",
                 pubky,
-                host
+                host,
+                cas
             );
             match self
-                .publish_homeserver_inner(keypair, host, existing.clone())
+                .publish_homeserver_inner(keypair, host, existing.as_ref(), cas)
                 .await
             {
                 Ok(()) => return Ok(()),
@@ -367,6 +379,7 @@ impl Pkdns {
                             pubky,
                             err
                         );
+                        saw_cas = true;
                         bounded_publish_backoff(attempt).await;
                         restore_cas_baseline_in_pkarr_cache(self.client.pkarr(), existing.as_ref());
                         existing = self.client.pkarr().resolve_most_recent(pubky).await;
@@ -473,17 +486,51 @@ fn classify_publish_retry(err: &Error, attempt: u32, max_attempts: u32) -> Optio
     None
 }
 
-async fn bounded_publish_backoff(attempt: u32) {
+/// Force-publish last attempt drops If-Match after a CAS failure so a
+/// phantom cache entry or a relay that still disagrees with our resolved
+/// timestamp cannot loop forever. `IfStale` keeps CAS on every attempt.
+fn cas_timestamp_for_attempt(
+    existing: Option<&SignedPacket>,
+    force: bool,
+    saw_cas: bool,
+    attempt: u32,
+) -> Option<Timestamp> {
+    if force && saw_cas && attempt == PUBLISH_MAX_ATTEMPTS {
+        return None;
+    }
+    existing.map(SignedPacket::timestamp)
+}
+
+pub(crate) async fn bounded_publish_backoff(attempt: u32) {
     let millis = match attempt {
-        1 => 50,
-        2 => 150,
-        _ => 300,
+        1 => 100,
+        2 => 300,
+        _ => 600,
     };
     #[cfg(not(target_arch = "wasm32"))]
     tokio::time::sleep(Duration::from_millis(millis)).await;
     #[cfg(target_arch = "wasm32")]
     {
-        let _ = millis;
+        use wasm_bindgen::JsCast;
+        let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+            let global = js_sys::global();
+            let Ok(set_timeout) =
+                js_sys::Reflect::get(&global, &wasm_bindgen::JsValue::from_str("setTimeout"))
+            else {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::UNDEFINED);
+                return;
+            };
+            let Ok(set_timeout) = set_timeout.dyn_into::<js_sys::Function>() else {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::UNDEFINED);
+                return;
+            };
+            let _ = set_timeout.call2(
+                &global,
+                &resolve,
+                &wasm_bindgen::JsValue::from_f64(f64::from(millis)),
+            );
+        });
+        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
     }
 }
 
@@ -614,6 +661,28 @@ mod tests {
 
     fn homeserver_packet(keypair: &Keypair, host: &str) -> SignedPacket {
         Pkdns::build_homeserver_packet(keypair, host, None).expect("signed homeserver packet")
+    }
+
+    #[test]
+    fn force_last_attempt_omits_cas_after_concurrency() {
+        let keypair = Keypair::random();
+        let packet = homeserver_packet(&keypair, &Keypair::random().public_key().to_string());
+        assert_eq!(
+            cas_timestamp_for_attempt(Some(&packet), true, true, PUBLISH_MAX_ATTEMPTS),
+            None
+        );
+        assert_eq!(
+            cas_timestamp_for_attempt(Some(&packet), true, true, 2),
+            Some(packet.timestamp())
+        );
+        assert_eq!(
+            cas_timestamp_for_attempt(Some(&packet), true, false, PUBLISH_MAX_ATTEMPTS),
+            Some(packet.timestamp())
+        );
+        assert_eq!(
+            cas_timestamp_for_attempt(Some(&packet), false, true, PUBLISH_MAX_ATTEMPTS),
+            Some(packet.timestamp())
+        );
     }
 
     #[test]
