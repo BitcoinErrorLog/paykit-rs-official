@@ -190,11 +190,7 @@ impl PubkySession {
     ///   request fails or the homeserver responds with a non-success status.
     pub async fn signout(self) -> std::result::Result<(), (Error, Self)> {
         cross_log!(info, "Signing out session for {}", self.info.public_key());
-        let resp = match self.storage().delete("/session").await {
-            Ok(r) => r,
-            Err(e) => return Err((e, self)),
-        };
-        if let Err(e) = check_http_status(resp).await {
+        if let Err(e) = self.storage().delete("/session").await {
             cross_log!(
                 error,
                 "Signout for {} failed: {}",

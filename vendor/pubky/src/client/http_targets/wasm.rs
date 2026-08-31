@@ -1,6 +1,8 @@
 //! HTTP methods that support `https://` with Pkarr domains, including `_pubky.<pk>` URLs
 
-use super::browser::{BrowserEndpointRank, rank_browser_endpoint, rewrite_url_for_browser};
+use std::ops::ControlFlow;
+
+use super::browser::{consider_browser_endpoint, rank_browser_endpoint, rewrite_url_for_browser};
 use crate::PublicKey;
 use crate::errors::{PkarrError, RequestError, Result};
 use crate::{PubkyHttpClient, cross_log};
@@ -113,6 +115,12 @@ impl PubkyHttpClient {
 
         self.apply_endpoint_to_url(url, &endpoint)?;
 
+        // Remaining HTTPS SVCB records are already in memory from the signed
+        // packet. Finish the stream so Drop cannot sit on the same turn as
+        // the homeserver write we are about to issue. Resolver racing (pkarr
+        // GETs) already completed inside the first `stream.next()`.
+        while stream.next().await.is_some() {}
+
         cross_log!(debug, "Transformed URL to {}", url.as_str());
 
         Ok(())
@@ -122,17 +130,13 @@ impl PubkyHttpClient {
     where
         S: futures_lite::Stream<Item = Endpoint> + Unpin,
     {
-        let mut best: Option<(BrowserEndpointRank, Endpoint)> = None;
+        let mut best = None;
         while let Some(endpoint) = stream.next().await {
             let rank = rank_browser_endpoint(endpoint.domain(), endpoint_has_http_port(&endpoint));
-            if rank == BrowserEndpointRank::Unreachable {
-                continue;
-            }
-            if rank == BrowserEndpointRank::BrowserHttp {
+            if let ControlFlow::Break(endpoint) =
+                consider_browser_endpoint(rank, endpoint, &mut best)
+            {
                 return Some(endpoint);
-            }
-            if best.as_ref().is_none_or(|(best_rank, _)| rank > *best_rank) {
-                best = Some((rank, endpoint));
             }
         }
 

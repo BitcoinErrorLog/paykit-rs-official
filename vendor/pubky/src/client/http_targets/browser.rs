@@ -5,6 +5,8 @@
 //! port) and a lower-priority ICANN/HTTP endpoint (domain + optional
 //! `HTTP_PORT`). Selection must prefer the record a browser can actually fetch.
 
+use std::ops::ControlFlow;
+
 use url::Url;
 
 use crate::errors::Result;
@@ -33,6 +35,45 @@ pub(crate) const fn rank_browser_endpoint(
         return BrowserEndpointRank::BrowserHttp;
     }
     BrowserEndpointRank::IcannHttps
+}
+
+/// Fold one ranked candidate into the running choice.
+///
+/// `BrowserHttp` wins immediately so later records are not required.
+/// `Unreachable` is skipped. `IcannHttps` is kept as a fallback.
+pub(crate) fn consider_browser_endpoint<T>(
+    rank: BrowserEndpointRank,
+    item: T,
+    best: &mut Option<(BrowserEndpointRank, T)>,
+) -> ControlFlow<T> {
+    match rank {
+        BrowserEndpointRank::Unreachable => ControlFlow::Continue(()),
+        BrowserEndpointRank::BrowserHttp => ControlFlow::Break(item),
+        BrowserEndpointRank::IcannHttps => {
+            if best.as_ref().is_none_or(|(best_rank, _)| rank > *best_rank) {
+                *best = Some((rank, item));
+            }
+            ControlFlow::Continue(())
+        }
+    }
+}
+
+/// Choose the best browser-reachable candidate from an iterator of ranks.
+///
+/// Used by the WASM endpoint stream and by native tests of that policy.
+/// Remaining items after a `BrowserHttp` win are not visited.
+#[must_use]
+pub(crate) fn select_best_browser_endpoint<I, T>(items: I) -> Option<T>
+where
+    I: IntoIterator<Item = (BrowserEndpointRank, T)>,
+{
+    let mut best = None;
+    for (rank, item) in items {
+        if let ControlFlow::Break(item) = consider_browser_endpoint(rank, item, &mut best) {
+            return Some(item);
+        }
+    }
+    best.map(|(_, item)| item)
 }
 
 /// Rewrite `url` to the ICANN/HTTP target a browser can fetch.
@@ -113,5 +154,45 @@ mod tests {
                 .unwrap();
         rewrite_url_for_browser(&mut url, "homeserver.staging.pubky.app", None, None).unwrap();
         assert_eq!(url.as_str(), "https://homeserver.staging.pubky.app/session");
+    }
+
+    #[test]
+    fn select_skips_unreachable_and_keeps_icann_https() {
+        let chosen = select_best_browser_endpoint([
+            (BrowserEndpointRank::Unreachable, "tls"),
+            (BrowserEndpointRank::IcannHttps, "https"),
+        ]);
+        assert_eq!(chosen, Some("https"));
+    }
+
+    #[test]
+    fn select_browser_http_wins_immediately() {
+        let chosen = select_best_browser_endpoint([
+            (BrowserEndpointRank::IcannHttps, "https"),
+            (BrowserEndpointRank::BrowserHttp, "http"),
+            (BrowserEndpointRank::IcannHttps, "later"),
+        ]);
+        assert_eq!(chosen, Some("http"));
+    }
+
+    #[test]
+    fn select_browser_http_does_not_visit_later_records() {
+        let mut visited = 0;
+        let chosen = select_best_browser_endpoint(
+            [
+                (BrowserEndpointRank::BrowserHttp, "http"),
+                (BrowserEndpointRank::IcannHttps, "must-not-visit"),
+            ]
+            .into_iter()
+            .inspect(|_| visited += 1),
+        );
+        assert_eq!(chosen, Some("http"));
+        assert_eq!(visited, 1);
+    }
+
+    #[test]
+    fn select_empty_is_none() {
+        let chosen = select_best_browser_endpoint::<_, &str>([]);
+        assert_eq!(chosen, None);
     }
 }

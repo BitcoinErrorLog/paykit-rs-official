@@ -5,7 +5,10 @@ use pubky_common::crypto::hash;
 use reqwest::{Method, StatusCode};
 use url::Url;
 
-use crate::{PubkyHttpClient, cross_log, util::check_http_status};
+use crate::{
+    PubkyHttpClient, cross_log,
+    util::{check_http_status, commit_issued_http_write},
+};
 
 /// Default HTTP relay inbox base when none is supplied.
 pub const DEFAULT_HTTP_RELAY_INBOX: &str = "https://httprelay.pubky.app/inbox";
@@ -202,7 +205,8 @@ impl HttpRelayInboxChannel {
         let request = client.cross_request(Method::POST, self.to_url()).await?;
         let request = request.body(body.to_vec());
         let response = request.send().await?;
-        check_http_status(response).await?;
+        let response = check_http_status(response).await?;
+        commit_issued_http_write(response).await?;
         Ok(())
     }
 
@@ -217,10 +221,17 @@ impl HttpRelayInboxChannel {
         let request = client.cross_request(Method::DELETE, self.to_url()).await?;
         let response = request.send().await?;
         match response.status() {
-            StatusCode::OK => Ok(true),
-            StatusCode::NOT_FOUND => Ok(false),
+            StatusCode::OK => {
+                commit_issued_http_write(response).await?;
+                Ok(true)
+            }
+            StatusCode::NOT_FOUND => {
+                commit_issued_http_write(response).await?;
+                Ok(false)
+            }
             _ => {
-                check_http_status(response).await?;
+                let response = check_http_status(response).await?;
+                commit_issued_http_write(response).await?;
                 Ok(false)
             }
         }
