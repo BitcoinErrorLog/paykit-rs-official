@@ -8,13 +8,14 @@
 use std::time::Duration;
 
 use pkarr::{
-    SignedPacket, Timestamp,
     dns::rdata::{RData, SVCB},
+    SignedPacket, Timestamp,
 };
 
 use crate::{
-    Keypair, PubkyHttpClient, PubkySigner, PublicKey, cross_log,
+    cross_log,
     errors::{AuthError, Error, PkarrError, Result},
+    Keypair, PubkyHttpClient, PubkySigner, PublicKey,
 };
 
 /// Default staleness window for homeserver `_pubky` Pkarr records (1 hour).
@@ -367,6 +368,7 @@ impl Pkdns {
                             err
                         );
                         bounded_publish_backoff(attempt).await;
+                        restore_cas_baseline_in_pkarr_cache(self.client.pkarr(), existing.as_ref());
                         existing = self.client.pkarr().resolve_most_recent(pubky).await;
                         last_err = Some(err);
                     }
@@ -433,6 +435,21 @@ enum PublishRetry {
 }
 
 const PUBLISH_MAX_ATTEMPTS: u32 = 3;
+
+/// pkarr writes a packet into its client cache *before* the remote
+/// publish confirms. A CAS failure therefore leaves a phantom packet
+/// newer than the relay's latest. `resolve_most_recent` then uses that
+/// timestamp as the query floor and never sees the real latest. Restore
+/// the CAS baseline so the next resolve can observe the relay's packet.
+fn restore_cas_baseline_in_pkarr_cache(client: &pkarr::Client, previous: Option<&SignedPacket>) {
+    let Some(packet) = previous else {
+        return;
+    };
+    let Some(cache) = client.cache() else {
+        return;
+    };
+    cache.put(&packet.public_key().into(), packet);
+}
 
 fn is_concurrency_failure(err: &Error) -> bool {
     matches!(
@@ -637,7 +654,13 @@ mod tests {
                     let host = existing.as_ref().and_then(extract_host_from_packet);
                     seen_publish.lock().expect("lock").push(host.clone());
                     let ok = host.as_deref() == Some(fresh_host_for_publish.as_str());
-                    async move { if ok { Ok(()) } else { Err(cas_failed()) } }
+                    async move {
+                        if ok {
+                            Ok(())
+                        } else {
+                            Err(cas_failed())
+                        }
+                    }
                 }
             },
             move || {
@@ -659,5 +682,18 @@ mod tests {
         );
         let hosts = seen.lock().expect("lock").clone();
         assert_eq!(hosts, vec![Some(stale_host), Some(fresh_host)]);
+    }
+
+    #[test]
+    fn restore_cas_baseline_overwrites_phantom_cache_entry() {
+        let keypair = Keypair::random();
+        let stale = homeserver_packet(&keypair, &Keypair::random().public_key().to_string());
+        let phantom = homeserver_packet(&keypair, &Keypair::random().public_key().to_string());
+        let client = pkarr::Client::builder().build().expect("pkarr client");
+        let cache = client.cache().expect("cache");
+        cache.put(&phantom.public_key().into(), &phantom);
+        restore_cas_baseline_in_pkarr_cache(&client, Some(&stale));
+        let restored = cache.get(&stale.public_key().into()).expect("restored");
+        assert_eq!(restored.timestamp(), stale.timestamp());
     }
 }
