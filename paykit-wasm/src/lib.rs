@@ -13,8 +13,8 @@
 //! - an in-memory Noise session (`MemoryNoiseSession`) exposing the same
 //!   `pubky_noise` crypto without homeserver I/O, used by the package smoke
 //!   test to prove the compiled crypto end to end.
-//! - SB2 verify/decrypt and X25519 key generation (`pubky-crypto`, no
-//!   crypto reimplemented here),
+//! - SB2 encrypt/sign/verify/decrypt, inbox_kid, and X25519 key generation
+//!   (`pubky-crypto`, no crypto reimplemented here),
 //! - session-scoped public PUT/DELETE, unauthenticated public GET, and
 //!   homeserver sign-out,
 //! - public Payment Endpoint publish/fetch/list/remove (paykit-lib writers;

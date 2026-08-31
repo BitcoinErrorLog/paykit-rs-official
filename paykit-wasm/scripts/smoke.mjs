@@ -45,6 +45,9 @@ import init, {
   maxNoiseMessageLen,
   noiseTagLen,
   x25519GenerateKeypair,
+  computeInboxKid,
+  sb2Encrypt,
+  sb2Sign,
   sb2VerifySignature,
   sb2Decrypt,
   publicGet,
@@ -90,6 +93,9 @@ ok("messaging API surface exported", () => {
     maxNoiseMessageLen,
     noiseTagLen,
     x25519GenerateKeypair,
+    computeInboxKid,
+    sb2Encrypt,
+    sb2Sign,
     sb2VerifySignature,
     sb2Decrypt,
     publicGet,
@@ -149,6 +155,43 @@ ok("x25519GenerateKeypair is hex and distinct from generateNoiseSecretKey", () =
   assert.notEqual(pair.secretKey, other.secretKey);
   const noiseHex = Buffer.from(aliceNoiseSecret).toString("hex");
   assert.notEqual(pair.secretKey, noiseHex);
+});
+
+ok("sb2Encrypt/sb2Sign round-trip through sb2Decrypt/sb2VerifySignature", () => {
+  const hexToBytes = (hex) => {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) {
+      out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return out;
+  };
+  const pair = x25519GenerateKeypair();
+  const recipientPk = hexToBytes(pair.publicKey);
+  const recipientSk = hexToBytes(pair.secretKey);
+  const ownerSecret = generateNoiseSecretKey();
+  const ownerPubky = noisePublicKeyFromSecret(ownerSecret);
+  const path = "/pub/paykit.app/v0/handoff/smoke";
+  const plaintext = new TextEncoder().encode("smoke-sb2");
+  const kid = computeInboxKid(pair.publicKey);
+  assert.match(kid, /^[0-9a-f]{32}$/);
+  const unsigned = sb2Encrypt(
+    recipientPk,
+    plaintext,
+    generateNoiseSecretKey(),
+    "smoke_001",
+    "request",
+    ownerPubky,
+    ownerPubky,
+    ownerPubky,
+    path,
+    1704067200n,
+    1704153600n,
+  );
+  assert.equal(sb2VerifySignature(unsigned, ownerPubky, path), false);
+  assert.deepEqual([...sb2Decrypt(unsigned, recipientSk, ownerPubky, path)], [...plaintext]);
+  const signed = sb2Sign(unsigned, ownerSecret, ownerPubky, path);
+  assert.equal(sb2VerifySignature(signed, ownerPubky, path), true);
+  assert.deepEqual([...sb2Decrypt(signed, recipientSk, ownerPubky, path)], [...plaintext]);
 });
 
 // Identity pubkeys for endpoint labelling (z-base-32 Ed25519 keys). These

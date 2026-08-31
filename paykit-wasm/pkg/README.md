@@ -36,6 +36,7 @@ Built on a fork of `pubky/paykit-rs`; upstream is pre-1.0 and unreviewed — see
 | Public Payment Endpoints | `setPaymentEndpoint`, `removePaymentEndpoint`, `getPaymentEndpoint` (404 → `undefined`), `getPaymentList` / `listPaymentMethods` (404 → empty). Paths are built inside paykit-lib (`PAYKIT_PATH_PREFIX`, `/pub/paykit/v0`) — callers do not supply homeserver paths. |
 | Private Payment Lists | `serializePrivatePaymentListJson`, `parsePrivatePaymentListJson`, `EncryptedLinkHandle.sendPrivatePaymentList()` (`set_private_payment_list`). There is no homeserver GET for private endpoints; inbound lists arrive as Encrypted Link messages. |
 | Constants | `maxNoiseMessageLen()` (1000), `noiseTagLen()` (16) |
+| SB2 handoff | `sb2Encrypt`, `sb2Sign`, `sb2VerifySignature`, `sb2Decrypt`, `computeInboxKid`, `x25519GenerateKeypair` — thin wrappers over `pubky-crypto` (`Sb2::encrypt_with_cert_id` / `sign` / `verify_signature` / `decrypt`). Owner/sender/recipient peerids accept z-base-32 or 64-hex. Encoder rejects plaintext over 64 KiB and `msg_id` over 128 ASCII characters. |
 | Test/vector surface | `MemoryNoiseSession` — the same `pubky_noise::snow_crypto::DataLinkContext` crypto (Noise `XX_25519_ChaChaPoly_SHA256`) with caller-shuttled packets instead of homeserver outboxes; used by the smoke test |
 
 **Not bound (deliberately):** Payment Requests (request/accept/reject/cancel/proof),
@@ -158,11 +159,11 @@ additively:
 
 | File | SHA-256 |
 | --- | --- |
-| `pkg/paykit_wasm_bg.wasm` | `a33b944c81b1661047b4d6f50ee41aab9342eef664a4e4f1470fcd94790949b5` |
-| `pkg/paykit_wasm.js` | `9e0520f8f357d9c186828c9fefa4cceb52aa28389a05312fe359d7219a417507` |
-| `pkg/paykit_wasm.d.ts` | `6196e530c54dd210d39235ad424c42ae26a9e6aa2bae120ee1a1366253c13c21` |
-| `pkg/paykit_wasm_bg.wasm.d.ts` | `4489b880773d5fbab7cf1aec9ac77c7d39b4def6a235af45cf054340c0afe055` |
-| `pkg/package.json` | `ecfde395fb97cdeec3cc22768601c483059a7e5b02a842eab260c83e2ef0c60f` |
+| `pkg/paykit_wasm_bg.wasm` | `5294e9177cc7bcd9c6a489d54c0326678065d644ba427ab1b25c30afda2fdf6b` |
+| `pkg/paykit_wasm.js` | `6ae0b56feb17a96a897df7637f81f2d97b856bbea34d7376ac7e525a3dc4403f` |
+| `pkg/paykit_wasm.d.ts` | `23a7fffad0e08b462392e89c7cc9ac2c3be83f95dd1d5cc373e9c1d04504e53f` |
+| `pkg/paykit_wasm_bg.wasm.d.ts` | `0e5f27cc661a5f425cfe76cfa671062b396ab0b9fbc643fcfb3ab429b45e148a` |
+| `pkg/package.json` | `8f380ca1cb6ac98e49ead69591d2965d87ee8318e8be0cc4419addd88ba9883a` |
 
 Generated `pkg/` size: ~1.8 MB (wasm ~1.7 MB). `wasm-opt` output is not
 guaranteed bit-identical across platforms/toolchains; treat these checksums as

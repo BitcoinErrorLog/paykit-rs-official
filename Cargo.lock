@@ -3257,7 +3257,7 @@ dependencies = [
 
 [[package]]
 name = "paykit-wasm"
-version = "0.1.0-rc44"
+version = "0.1.0-rc45"
 dependencies = [
  "base64",
  "ed25519-dalek 2.2.0",

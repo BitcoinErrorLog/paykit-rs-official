@@ -864,6 +864,38 @@ export function clearEncryptedLinkOutbox(session, local_noise_secret_key, remote
 }
 
 /**
+ * Compute `inbox_kid` for a recipient InboxKey X25519 public key.
+ *
+ * `inbox_kid = first_16_bytes(SHA256(x25519_pub))`, returned as lowercase
+ * 32-character hex. `x25519PubHex` is a 64-character hex public key (the
+ * form returned by `x25519GenerateKeypair`).
+ *
+ * Binds `pubky_crypto::sealed_blob_v2::Sb2Header::compute_inbox_kid`.
+ * @param {string} x25519_pub_hex
+ * @returns {string}
+ */
+export function computeInboxKid(x25519_pub_hex) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(x25519_pub_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.computeInboxKid(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Generate a random receiver-scoped Noise secret key (32 bytes).
  *
  * Mirrors `paykit_sdk::ReceiverNoiseSecretKey::random()`: the key is an
@@ -1280,6 +1312,88 @@ export function sb2Decrypt(envelope, recipient_sk, owner_pubky, canonical_path) 
     const ptr3 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len3 = WASM_VECTOR_LEN;
     const ret = wasm.sb2Decrypt(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v5 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v5;
+}
+
+/**
+ * Encrypt plaintext to an unsigned SB2 binary envelope.
+ *
+ * Binds `Sb2::encrypt_with_cert_id` + `Sb2::encode`. Does not reimplement
+ * the cipher. Plaintext is capped at 64 KiB and `msg_id` at 128 ASCII
+ * characters by the encoder. `ownerPubky`, `senderPeerid`, and
+ * `recipientPeerid` accept z-base-32 or 64-hex.
+ *
+ * Call `sb2Sign` afterwards when the envelope must authenticate the sender.
+ * @param {Uint8Array} recipient_inbox_pk
+ * @param {Uint8Array} plaintext
+ * @param {Uint8Array} context_id
+ * @param {string | null | undefined} msg_id
+ * @param {string | null | undefined} purpose
+ * @param {string} owner_pubky
+ * @param {string} sender_peerid
+ * @param {string} recipient_peerid
+ * @param {string} canonical_path
+ * @param {bigint | null} [created_at]
+ * @param {bigint | null} [expires_at]
+ * @param {Uint8Array | null} [cert_id]
+ * @returns {Uint8Array}
+ */
+export function sb2Encrypt(recipient_inbox_pk, plaintext, context_id, msg_id, purpose, owner_pubky, sender_peerid, recipient_peerid, canonical_path, created_at, expires_at, cert_id) {
+    const ptr0 = passArray8ToWasm0(recipient_inbox_pk, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(plaintext, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray8ToWasm0(context_id, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    var ptr3 = isLikeNone(msg_id) ? 0 : passStringToWasm0(msg_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len3 = WASM_VECTOR_LEN;
+    var ptr4 = isLikeNone(purpose) ? 0 : passStringToWasm0(purpose, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len4 = WASM_VECTOR_LEN;
+    const ptr5 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len5 = WASM_VECTOR_LEN;
+    const ptr6 = passStringToWasm0(sender_peerid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len6 = WASM_VECTOR_LEN;
+    const ptr7 = passStringToWasm0(recipient_peerid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len7 = WASM_VECTOR_LEN;
+    const ptr8 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len8 = WASM_VECTOR_LEN;
+    var ptr9 = isLikeNone(cert_id) ? 0 : passArray8ToWasm0(cert_id, wasm.__wbindgen_malloc);
+    var len9 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2Encrypt(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, ptr8, len8, !isLikeNone(created_at), isLikeNone(created_at) ? BigInt(0) : created_at, !isLikeNone(expires_at), isLikeNone(expires_at) ? BigInt(0) : expires_at, ptr9, len9);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v11 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v11;
+}
+
+/**
+ * Sign an SB2 envelope with the sender's Ed25519 secret key.
+ *
+ * Binds `Sb2::decode` + `Sb2::sign` + `Sb2::encode`. `ownerPubky` accepts
+ * z-base-32 or 64-hex and must match the path bound into the AAD at encrypt.
+ * @param {Uint8Array} envelope
+ * @param {Uint8Array} sender_ed25519_sk
+ * @param {string} owner_pubky
+ * @param {string} canonical_path
+ * @returns {Uint8Array}
+ */
+export function sb2Sign(envelope, sender_ed25519_sk, owner_pubky, canonical_path) {
+    const ptr0 = passArray8ToWasm0(envelope, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(sender_ed25519_sk, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2Sign(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
     }
@@ -1781,12 +1895,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1249, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1256, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1075, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1082, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1);
             return ret;
         },
