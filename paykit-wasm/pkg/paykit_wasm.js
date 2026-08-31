@@ -601,6 +601,23 @@ export class PubkyClient {
         return this;
     }
     /**
+     * Force a fresh `_pubky` lookup for `pubkyZ32` from relays/DHT.
+     *
+     * Call after a counterparty migrates homeserver so subsequent requests
+     * do not keep using a cached mailbox pointer.
+     * @param {string} pubky_z32
+     * @returns {Promise<any>}
+     */
+    resolveMostRecentHomeserver(pubky_z32) {
+        const ptr0 = passStringToWasm0(pubky_z32, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.pubkyclient_resolveMostRecentHomeserver(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Restore a homeserver session from metadata previously produced by
      * `SessionHandle.exportSession()`, without a new signer approval.
      *
@@ -1944,12 +1961,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1266, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1271, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1092, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1097, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1);
             return ret;
         },

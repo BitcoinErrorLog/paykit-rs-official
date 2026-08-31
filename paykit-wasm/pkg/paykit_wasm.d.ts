@@ -232,6 +232,13 @@ export class PubkyClient {
      */
     constructor();
     /**
+     * Force a fresh `_pubky` lookup for `pubkyZ32` from relays/DHT.
+     *
+     * Call after a counterparty migrates homeserver so subsequent requests
+     * do not keep using a cached mailbox pointer.
+     */
+    resolveMostRecentHomeserver(pubky_z32: string): Promise<any>;
+    /**
      * Restore a homeserver session from metadata previously produced by
      * `SessionHandle.exportSession()`, without a new signer approval.
      *
@@ -576,6 +583,19 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
+    readonly maxNoiseMessageLen: () => number;
+    readonly memorynoisesession_close: (a: number) => void;
+    readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly memorynoisesession_isHandshakeComplete: (a: number) => number;
+    readonly memorynoisesession_isTransport: (a: number) => number;
+    readonly memorynoisesession_linkIdHex: (a: number) => [number, number];
+    readonly memorynoisesession_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
+    readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
+    readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
+    readonly noiseTagLen: () => number;
     readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
     readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
     readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
@@ -583,6 +603,7 @@ export interface InitOutput {
     readonly authflowhandle_awaitApproval: (a: number) => any;
     readonly pubkyclient_migrateHomeserverWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly pubkyclient_new: () => [number, number, number];
+    readonly pubkyclient_resolveMostRecentHomeserver: (a: number, b: number, c: number) => [number, number, number];
     readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
     readonly pubkyclient_resumeSessionFromCookie: (a: number, b: number, c: number) => [number, number, number];
     readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
@@ -595,16 +616,17 @@ export interface InitOutput {
     readonly sessionhandle_pubky: (a: number) => [number, number];
     readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
     readonly signOutSession: (a: number) => any;
-    readonly computeInboxKid: (a: number, b: number) => [number, number, number, number];
-    readonly generateNoiseSecretKey: () => [number, number];
-    readonly maxNoiseMessageLen: () => number;
-    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
-    readonly noiseTagLen: () => number;
-    readonly sb2Decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
-    readonly sb2Encrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: bigint, u: number, v: bigint, w: number, x: number) => [number, number, number, number];
-    readonly sb2Sign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
-    readonly sb2VerifySignature: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
-    readonly x25519GenerateKeypair: () => any;
+    readonly getPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly getPaymentList: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
+    readonly listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
+    readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
+    readonly removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
+    readonly serializePrivatePaymentListJson: (a: any) => [number, number, number, number];
+    readonly setPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly __wbg_encryptedlinkhandle_free: (a: number, b: number) => void;
     readonly __wbg_linkhandshakehandle_free: (a: number, b: number) => void;
     readonly acceptEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
@@ -625,28 +647,14 @@ export interface InitOutput {
     readonly linkhandshakehandle_snapshot: (a: number) => [number, number, number, number];
     readonly restoreEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly restoreEncryptedLinkHandshake: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly getPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly getPaymentList: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
-    readonly listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
-    readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
-    readonly removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
-    readonly serializePrivatePaymentListJson: (a: any) => [number, number, number, number];
-    readonly setPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
-    readonly memorynoisesession_close: (a: number) => void;
-    readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly memorynoisesession_isHandshakeComplete: (a: number) => number;
-    readonly memorynoisesession_isTransport: (a: number) => number;
-    readonly memorynoisesession_linkIdHex: (a: number) => [number, number];
-    readonly memorynoisesession_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
-    readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
-    readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
+    readonly computeInboxKid: (a: number, b: number) => [number, number, number, number];
+    readonly generateNoiseSecretKey: () => [number, number];
+    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
+    readonly sb2Decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly sb2Encrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: bigint, u: number, v: bigint, w: number, x: number) => [number, number, number, number];
+    readonly sb2Sign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly sb2VerifySignature: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly x25519GenerateKeypair: () => any;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: any) => any;
