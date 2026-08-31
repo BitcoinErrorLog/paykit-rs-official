@@ -220,6 +220,23 @@ impl PubkyClient {
             Ok(SessionHandle { inner: session }.into())
         }))
     }
+
+    /// Force a fresh `_pubky` lookup for `pubkyZ32` from relays/DHT.
+    ///
+    /// Call after a counterparty migrates homeserver so subsequent requests
+    /// do not keep using a cached mailbox pointer.
+    #[wasm_bindgen(js_name = resolveMostRecentHomeserver)]
+    pub fn resolve_most_recent_homeserver(
+        &self,
+        pubky_z32: &str,
+    ) -> Result<js_sys::Promise, JsValue> {
+        let public_key = public_key_from_z32(pubky_z32, "pubky")?;
+        let pkarr = self.inner.client().pkarr().clone();
+        Ok(future_to_promise(async move {
+            let _latest = pkarr.resolve_most_recent(&public_key).await;
+            Ok(JsValue::UNDEFINED)
+        }))
+    }
 }
 
 /// An in-progress pubkyauth flow.
