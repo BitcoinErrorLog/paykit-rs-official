@@ -8,14 +8,13 @@
 use std::time::Duration;
 
 use pkarr::{
-    dns::rdata::{RData, SVCB},
     SignedPacket, Timestamp,
+    dns::rdata::{RData, SVCB},
 };
 
 use crate::{
-    cross_log,
+    Keypair, PubkyHttpClient, PubkySigner, PublicKey, cross_log,
     errors::{AuthError, Error, PkarrError, Result},
-    Keypair, PubkyHttpClient, PubkySigner, PublicKey,
 };
 
 /// Default staleness window for homeserver `_pubky` Pkarr records (1 hour).
@@ -357,8 +356,10 @@ impl Pkdns {
         let mut last_err = None;
         let mut saw_cas = false;
 
-        for attempt in 1..=PUBLISH_MAX_ATTEMPTS {
-            let cas = cas_timestamp_for_attempt(existing.as_ref(), force, saw_cas, attempt);
+        let max_attempts = publish_max_attempts(force);
+        for attempt in 1..=max_attempts {
+            let cas =
+                cas_timestamp_for_attempt(existing.as_ref(), force, saw_cas, attempt, max_attempts);
             cross_log!(
                 info,
                 "Publishing homeserver for {} (attempt {attempt}) -> host {} cas={:?}",
@@ -371,7 +372,7 @@ impl Pkdns {
                 .await
             {
                 Ok(()) => return Ok(()),
-                Err(err) => match classify_publish_retry(&err, attempt, PUBLISH_MAX_ATTEMPTS) {
+                Err(err) => match classify_publish_retry(&err, attempt, max_attempts) {
                     Some(PublishRetry::ReResolve) => {
                         cross_log!(
                             warn,
@@ -447,7 +448,16 @@ enum PublishRetry {
     SameCas,
 }
 
-const PUBLISH_MAX_ATTEMPTS: u32 = 3;
+const PUBLISH_MAX_ATTEMPTS_FORCE: u32 = 6;
+const PUBLISH_MAX_ATTEMPTS_STALE: u32 = 3;
+
+fn publish_max_attempts(force: bool) -> u32 {
+    if force {
+        PUBLISH_MAX_ATTEMPTS_FORCE
+    } else {
+        PUBLISH_MAX_ATTEMPTS_STALE
+    }
+}
 
 /// pkarr writes a packet into its client cache *before* the remote
 /// publish confirms. A CAS failure therefore leaves a phantom packet
@@ -473,11 +483,20 @@ fn is_concurrency_failure(err: &Error) -> bool {
     )
 }
 
+fn is_unexpected_relay_responses(err: &Error) -> bool {
+    matches!(
+        err,
+        Error::Pkarr(PkarrError::Publish(
+            pkarr::errors::PublishError::UnexpectedResponses
+        ))
+    )
+}
+
 fn classify_publish_retry(err: &Error, attempt: u32, max_attempts: u32) -> Option<PublishRetry> {
     if attempt >= max_attempts {
         return None;
     }
-    if is_concurrency_failure(err) {
+    if is_concurrency_failure(err) || is_unexpected_relay_responses(err) {
         return Some(PublishRetry::ReResolve);
     }
     if matches!(err, Error::Pkarr(pk) if pk.is_retryable()) {
@@ -494,8 +513,9 @@ fn cas_timestamp_for_attempt(
     force: bool,
     saw_cas: bool,
     attempt: u32,
+    max_attempts: u32,
 ) -> Option<Timestamp> {
-    if force && saw_cas && attempt == PUBLISH_MAX_ATTEMPTS {
+    if force && saw_cas && attempt == max_attempts {
         return None;
     }
     existing.map(SignedPacket::timestamp)
@@ -505,7 +525,10 @@ pub(crate) async fn bounded_publish_backoff(attempt: u32) {
     let millis = match attempt {
         1 => 100,
         2 => 300,
-        _ => 600,
+        3 => 600,
+        4 => 2_000,
+        5 => 5_000,
+        _ => 10_000,
     };
     #[cfg(not(target_arch = "wasm32"))]
     tokio::time::sleep(Duration::from_millis(millis)).await;
@@ -548,10 +571,10 @@ where
 {
     let mut last_err = None;
 
-    for attempt in 1..=PUBLISH_MAX_ATTEMPTS {
+    for attempt in 1..=PUBLISH_MAX_ATTEMPTS_FORCE {
         match publish(existing.clone()).await {
             Ok(()) => return Ok(()),
-            Err(err) => match classify_publish_retry(&err, attempt, PUBLISH_MAX_ATTEMPTS) {
+            Err(err) => match classify_publish_retry(&err, attempt, PUBLISH_MAX_ATTEMPTS_FORCE) {
                 Some(PublishRetry::ReResolve) => {
                     bounded_publish_backoff(attempt).await;
                     existing = resolve().await;
@@ -668,19 +691,37 @@ mod tests {
         let keypair = Keypair::random();
         let packet = homeserver_packet(&keypair, &Keypair::random().public_key().to_string());
         assert_eq!(
-            cas_timestamp_for_attempt(Some(&packet), true, true, PUBLISH_MAX_ATTEMPTS),
+            cas_timestamp_for_attempt(
+                Some(&packet),
+                true,
+                true,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+            ),
             None
         );
         assert_eq!(
-            cas_timestamp_for_attempt(Some(&packet), true, true, 2),
+            cas_timestamp_for_attempt(Some(&packet), true, true, 2, PUBLISH_MAX_ATTEMPTS_FORCE),
             Some(packet.timestamp())
         );
         assert_eq!(
-            cas_timestamp_for_attempt(Some(&packet), true, false, PUBLISH_MAX_ATTEMPTS),
+            cas_timestamp_for_attempt(
+                Some(&packet),
+                true,
+                false,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+            ),
             Some(packet.timestamp())
         );
         assert_eq!(
-            cas_timestamp_for_attempt(Some(&packet), false, true, PUBLISH_MAX_ATTEMPTS),
+            cas_timestamp_for_attempt(
+                Some(&packet),
+                false,
+                true,
+                PUBLISH_MAX_ATTEMPTS_STALE,
+                PUBLISH_MAX_ATTEMPTS_STALE,
+            ),
             Some(packet.timestamp())
         );
     }
@@ -689,14 +730,17 @@ mod tests {
     fn classify_cas_re_resolves_until_the_last_attempt() {
         let err = cas_failed();
         assert_eq!(
-            classify_publish_retry(&err, 1, PUBLISH_MAX_ATTEMPTS),
+            classify_publish_retry(&err, 1, PUBLISH_MAX_ATTEMPTS_FORCE),
             Some(PublishRetry::ReResolve)
         );
         assert_eq!(
-            classify_publish_retry(&err, 2, PUBLISH_MAX_ATTEMPTS),
+            classify_publish_retry(&err, 2, PUBLISH_MAX_ATTEMPTS_FORCE),
             Some(PublishRetry::ReResolve)
         );
-        assert_eq!(classify_publish_retry(&err, 3, PUBLISH_MAX_ATTEMPTS), None);
+        assert_eq!(
+            classify_publish_retry(&err, PUBLISH_MAX_ATTEMPTS_FORCE, PUBLISH_MAX_ATTEMPTS_FORCE),
+            None
+        );
     }
 
     #[tokio::test]
@@ -723,13 +767,7 @@ mod tests {
                     let host = existing.as_ref().and_then(extract_host_from_packet);
                     seen_publish.lock().expect("lock").push(host.clone());
                     let ok = host.as_deref() == Some(fresh_host_for_publish.as_str());
-                    async move {
-                        if ok {
-                            Ok(())
-                        } else {
-                            Err(cas_failed())
-                        }
-                    }
+                    async move { if ok { Ok(()) } else { Err(cas_failed()) } }
                 }
             },
             move || {
