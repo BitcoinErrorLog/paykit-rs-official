@@ -1,9 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["paykit-lib", "paykit-ffi", "paykit-sdk", "paykit-wasm"]
+members = ["paykit-lib", "paykit-ffi", "paykit-sdk", "paykit-wasm", "vendor/pubky"]
 
 [patch.crates-io]
 rustls-platform-verifier-android = { path = "vendor/rustls-platform-verifier-android" }
+# crates.io pubky 0.8.0 with Android ICANN HTTP TLS using rustls + webpki-roots
+# so ChatAuthFlow HTTP-relay polling does not hit Android PKIX OCSP-presence
+# hard-fail on Let's Encrypt YE1. See vendor/pubky/PATCHES.md.
+pubky = { path = "vendor/pubky" }
 # snow 0.10.0 with a one-line manifest fix ("ring/std" -> "ring?/std") so the
 # unused optional ring dependency is not force-enabled by the default `std`
 # feature. Required to build paykit-wasm for wasm32-unknown-unknown without a

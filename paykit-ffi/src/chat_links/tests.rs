@@ -687,6 +687,27 @@ async fn test_start_auth_flow_requires_paykit_rw() {
     assert!(ok.is_ok(), "exact paykit rw grant should be accepted");
 }
 
+#[test]
+fn chat_auth_flow_uses_shared_pubky_http_client_without_insecure_tls() {
+    let src = include_str!("../chat_links.rs");
+    assert!(
+        src.contains("self.inner.start_auth_flow(&caps, AuthFlowKind::signin())"),
+        "default relay path must use the shared Pubky client"
+    );
+    assert!(
+        src.contains(".client(self.inner.client().clone())"),
+        "override relay path must reuse the shared PubkyHttpClient"
+    );
+    assert!(
+        !src.contains(&format!("{}{}{}", "danger_", "accept_invalid_", "certs"))
+            && !src.contains(&format!(
+                "{}{}{}",
+                "danger_", "accept_invalid_", "hostnames"
+            )),
+        "chat auth flow must not disable TLS verification"
+    );
+}
+
 #[tokio::test]
 async fn test_chat_message_and_auth_flow_debug_never_emit_secrets() {
     let message = FfiChatMessage {
