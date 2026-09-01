@@ -628,3 +628,18 @@ async fn test_ffi_session_provider_reimports_repeatedly() {
         assert!(status.live_session_available);
     }
 }
+
+#[test]
+fn vendor_pubky_and_pkarr_match_crates_io_except_documented_deltas() {
+    let script = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../scripts/verify-vendor-integrity.sh");
+    let status = std::process::Command::new("bash")
+        .arg(&script)
+        .current_dir(script.parent().and_then(|p| p.parent()).unwrap())
+        .status()
+        .expect("vendor integrity script must run");
+    assert!(
+        status.success(),
+        "vendored pubky/pkarr must match crates.io except PATCHES.md allowlists"
+    );
+}

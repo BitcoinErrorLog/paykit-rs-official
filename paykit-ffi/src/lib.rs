@@ -61,8 +61,9 @@ pub extern "system" fn Java_com_synonym_paykit_PaykitAndroid_nativeInitialize(
     context: jni::objects::JObject<'_>,
 ) -> jni::sys::jboolean {
     init_android_logger();
-    // Still required for pkarr relay HTTPS and other default-verifier clients.
-    // ChatAuthFlow ICANN HTTP uses rustls + webpki-roots and does not consult this.
+    // Still required for any remaining default rustls-platform-verifier clients.
+    // ChatAuthFlow ICANN HTTP and pkarr RelaysClient HTTPS use rustls +
+    // webpki-roots and do not consult this.
     match rustls_platform_verifier::android::init_with_env(&mut env, context) {
         Ok(()) => jni::sys::JNI_TRUE,
         Err(err) => {

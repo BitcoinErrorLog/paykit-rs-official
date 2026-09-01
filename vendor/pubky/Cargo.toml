@@ -125,15 +125,6 @@ features = [
 ]
 default-features = false
 
-# Used to build a rustls config for the Android ICANN HTTP client (see
-# client/core.rs). Versions unify with what reqwest's rustls feature already
-# pulls in.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.rustls]
-version = "0.23"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.webpki-roots]
-version = "1"
-
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.tokio]
 version = "1.49.0"
 features = ["full"]

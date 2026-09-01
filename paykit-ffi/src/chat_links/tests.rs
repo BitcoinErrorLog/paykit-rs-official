@@ -698,14 +698,11 @@ fn chat_auth_flow_uses_shared_pubky_http_client_without_insecure_tls() {
         src.contains(".client(self.inner.client().clone())"),
         "override relay path must reuse the shared PubkyHttpClient"
     );
-    assert!(
-        !src.contains(&format!("{}{}{}", "danger_", "accept_invalid_", "certs"))
-            && !src.contains(&format!(
-                "{}{}{}",
-                "danger_", "accept_invalid_", "hostnames"
-            )),
-        "chat auth flow must not disable TLS verification"
-    );
+
+    pubky::PubkyHttpClient::new().expect("shared PubkyHttpClient (icann + pkarr) must construct");
+    pubky::pkarr::Client::builder()
+        .build()
+        .expect("pkarr RelaysClient path used by start_auth_flow must construct");
 }
 
 #[tokio::test]

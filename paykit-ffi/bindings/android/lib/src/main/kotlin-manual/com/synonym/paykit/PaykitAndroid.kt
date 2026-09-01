@@ -24,9 +24,12 @@ public object PaykitAndroid {
     /**
      * Initialize Android rustls-platform-verifier with an application Context.
      *
-     * Still required: pkarr relay HTTPS and other default-verifier clients use
-     * the platform TrustManager. ChatAuthFlow ICANN HTTP (HTTP-relay polling)
-     * uses rustls + webpki-roots and does not consult this verifier.
+     * Still required for any remaining default rustls-platform-verifier
+     * clients that need an application Context.
+     *
+     * ChatAuthFlow ICANN HTTP-relay polling and pkarr RelaysClient HTTPS both
+     * use rustls + Mozilla/webpki roots on Android and do not consult this
+     * verifier. PubkyTLS raw-public-key homeserver connections are unchanged.
      */
     @JvmStatic
     public fun initialize(context: Context): Boolean =

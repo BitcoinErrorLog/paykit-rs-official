@@ -4,8 +4,8 @@ Source: crates.io `pubky` 0.8.0 (`25d85fdb77a0ee17213b1885f7d5c5d0536fa3ab11f93d
 
 This tree is byte-identical to that crate except:
 
-1. `Cargo.toml` / `Cargo.toml.orig` add native `rustls` 0.23 and `webpki-roots` 1, and disable doctests that need `pubky-testnet`.
-2. `src/client/core.rs` configures Android `icann_http` with rustls + Mozilla/webpki roots instead of `rustls-platform-verifier`.
+1. `Cargo.toml` / `Cargo.toml.orig` disable doctests that need `pubky-testnet`.
+2. `src/client/core.rs` configures Android `icann_http` with the shared pkarr Android WebPKI helper (`pkarr::android_webpki_https::apply_mozilla_webpki_https`) instead of `rustls-platform-verifier`.
 
 ## Why
 
@@ -13,6 +13,15 @@ Paykit Android `ChatAuthFlow` polls the pubkyauth HTTP relay over ICANN HTTPS (`
 
 The Paykit-specific `rustls-platform-verifier-android` missing-CRL soft-fail does not cover the OCSP-responder-absent error.
 
-This follows pubky-homeserver PR 456: rustls with `webpki-roots`, no Android PKIX revocation hard-fail. Hostname, validity, signature, and chain validation remain enabled. Verification is not disabled, certificates are not pinned, and cleartext is not permitted. Non-Android native builds keep `rustls-platform-verifier`. PubkyTLS raw-public-key (`http`) is unchanged.
+This follows pubky-homeserver PR 456 and the vendored pkarr 6.0.0 Android WebPKI helper: rustls with `webpki-roots`, no Android PKIX revocation hard-fail.
 
-`PaykitAndroid.initializeOrThrow` remains required: pkarr relay HTTPS and other default-verifier clients still use the platform TrustManager.
+## Security posture
+
+- Hostname, validity, signature, EKU/KU, and chain-to-Mozilla-root checks remain enabled.
+- **No revocation checking.** A revoked-but-unexpired certificate that still chains to a Mozilla root is accepted. This matches browser/`WebPKI`-root posture and pubky-homeserver PR 456.
+- Verification is not disabled, certificates are not pinned, and cleartext is not permitted.
+- Non-Android native builds keep `rustls-platform-verifier` for `icann_http`.
+- PubkyTLS raw-public-key (`http`, from pkarr `reqwest-builder`) is unchanged.
+- ALPN is `http/1.1` only because these reqwest clients are built without `http2`.
+
+`PaykitAndroid.initializeOrThrow` remains required for any remaining default-verifier clients. ChatAuthFlow ICANN HTTP and (via vendored pkarr) RelaysClient HTTPS do not consult that verifier.

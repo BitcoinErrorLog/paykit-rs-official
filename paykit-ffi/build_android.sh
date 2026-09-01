@@ -4,6 +4,25 @@ set -e
 
 echo "Starting Android build process..."
 
+echo "Verifying vendored pubky/pkarr integrity..."
+"$(cd "$(dirname "$0")/.." && pwd)/scripts/verify-vendor-integrity.sh"
+
+# AGP 8.5.2 does not run on JDK 25. Prefer a local 17/21 toolchain when the
+# default `java` is newer than that.
+if ! java -version 2>&1 | head -n 1 | grep -Eq 'version "(17|21)\.'; then
+    for candidate in \
+        /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home \
+        /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
+        "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+    do
+        if [ -x "$candidate/bin/java" ]; then
+            export JAVA_HOME="$candidate"
+            echo "Using JAVA_HOME=$JAVA_HOME"
+            break
+        fi
+    done
+fi
+
 # Workspace target directory (paykit-ffi is a workspace member, so target/ is at the root)
 TARGET_DIR="../target"
 
