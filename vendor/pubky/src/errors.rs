@@ -147,6 +147,17 @@ pub enum RequestError {
         /// Error message from the JSON deserializer (with context if available).
         message: String,
     },
+
+    /// An issued write's response body did not finish draining in time.
+    ///
+    /// Treat the write as unconfirmed (still owed) and retry. On wasm, a 2xx
+    /// header can arrive while the body trickles forever; bounding the drain
+    /// prevents a stalled homeserver from holding the caller indefinitely.
+    #[error("HTTP write body drain timed out: {message}")]
+    Timeout {
+        /// Human-readable explanation of which drain timed out.
+        message: String,
+    },
 }
 
 /// A specialized `Result` type for `pubky` operations.

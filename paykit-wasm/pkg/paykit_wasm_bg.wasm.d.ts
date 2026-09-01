@@ -1,8 +1,18 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const getPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+export const getPaymentList: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+export const getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+export const listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
+export const listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+export const parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
+export const publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
+export const removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+export const removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
+export const serializePrivatePaymentListJson: (a: any) => [number, number, number, number];
+export const setPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
 export const __wbg_memorynoisesession_free: (a: number, b: number) => void;
-export const maxNoiseMessageLen: () => number;
 export const memorynoisesession_close: (a: number) => void;
 export const memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
 export const memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
@@ -13,7 +23,6 @@ export const memorynoisesession_new: (a: number, b: number, c: number, d: number
 export const memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
 export const memorynoisesession_transitionTransport: (a: number) => [number, number];
 export const memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
-export const noiseTagLen: () => number;
 export const __wbg_authflowhandle_free: (a: number, b: number) => void;
 export const __wbg_pubkyclient_free: (a: number, b: number) => void;
 export const __wbg_sessionhandle_free: (a: number, b: number) => void;
@@ -34,17 +43,8 @@ export const sessionhandle_exportSession: (a: number) => [number, number];
 export const sessionhandle_pubky: (a: number) => [number, number];
 export const sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
 export const signOutSession: (a: number) => any;
-export const getPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-export const getPaymentList: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-export const getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-export const listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
-export const listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-export const parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
-export const publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
-export const removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-export const removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
-export const serializePrivatePaymentListJson: (a: any) => [number, number, number, number];
-export const setPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+export const maxNoiseMessageLen: () => number;
+export const noiseTagLen: () => number;
 export const __wbg_encryptedlinkhandle_free: (a: number, b: number) => void;
 export const __wbg_linkhandshakehandle_free: (a: number, b: number) => void;
 export const acceptEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];

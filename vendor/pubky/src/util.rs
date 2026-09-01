@@ -1,6 +1,14 @@
+use std::time::Duration;
+
 use reqwest::Response;
 
 use crate::errors::{Error, RequestError, Result};
+
+/// Homeserver write-ack bodies are empty or a few bytes; a healthy drain
+/// finishes in milliseconds even on slow mobile. Five seconds is above
+/// jitter and below the sequential-drain stall window (minutes). Timeout
+/// is a transport error so the write stays owed and retries.
+pub(crate) const WRITE_BODY_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Convert non-2xx responses into a structured error that includes the server body.
 ///
@@ -33,24 +41,77 @@ pub async fn check_http_status(response: Response) -> Result<Response> {
 /// the write from committing. Drain the body while the abort guard is still
 /// alive; abort after a completed fetch is a no-op.
 ///
+/// The drain is raced against [`WRITE_BODY_DRAIN_TIMEOUT`]. A hostile or
+/// stalled homeserver can send 2xx headers and trickle the body forever;
+/// timeout surfaces as [`RequestError::Timeout`] so the write stays owed.
+/// Dropping the unfinished `bytes()` future on timeout aborts the wasm
+/// fetch, which is correct: the write is already unconfirmed.
+///
 /// GET callers must keep the unread body. Only call this on write responses.
 pub(crate) async fn commit_issued_http_write(response: Response) -> Result<()> {
-    #[cfg(target_arch = "wasm32")]
-    {
-        response.bytes().await?;
-        Ok(())
-    }
+    race_write_body_drain(response.bytes(), WRITE_BODY_DRAIN_TIMEOUT).await
+}
+
+fn write_body_drain_timeout_error() -> Error {
+    Error::from(RequestError::Timeout {
+        message: "homeserver write-ack body drain exceeded the bound".into(),
+    })
+}
+
+/// Race a body-read future against `timeout`. Shared by the production drain
+/// and the native unit test that models a stream that never completes.
+pub(crate) async fn race_write_body_drain<F, T>(drain: F, timeout: Duration) -> Result<()>
+where
+    F: Future<Output = std::result::Result<T, reqwest::Error>>,
+{
     #[cfg(not(target_arch = "wasm32"))]
     {
-        drop(response);
-        Ok(())
+        match tokio::time::timeout(timeout, drain).await {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(err)) => Err(err.into()),
+            Err(_) => Err(write_body_drain_timeout_error()),
+        }
     }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        use futures_util::future::{Either, select};
+        use std::pin::pin;
+
+        let drain = pin!(drain);
+        let timer = pin!(wasm_sleep(timeout));
+        match select(drain, timer).await {
+            Either::Left((Ok(_), _)) => Ok(()),
+            Either::Left((Err(err), _)) => Err(err.into()),
+            Either::Right((_, _drain)) => Err(write_body_drain_timeout_error()),
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn wasm_sleep(timeout: Duration) {
+    let ms = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        let global = js_sys::global();
+        let Ok(set_timeout) = js_sys::Reflect::get(&global, &"setTimeout".into()) else {
+            let _ = resolve.call0(&wasm_bindgen::JsValue::UNDEFINED);
+            return;
+        };
+        let set_timeout = js_sys::Function::from(set_timeout);
+        let _ = set_timeout.call2(&global, &resolve, &ms.into());
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }
 
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
     use std::rc::Rc;
+    use std::time::{Duration, Instant};
+
+    use crate::errors::{Error, RequestError};
+
+    use super::race_write_body_drain;
 
     /// Models reqwest's wasm `AbortGuard`: Drop aborts unless the body was
     /// taken first (the fetch completed).
@@ -91,5 +152,42 @@ mod tests {
         let body = consume_write_body(response);
         assert_eq!(body, vec![1, 2, 3]);
         assert!(!aborted.get());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn never_completing_body_times_out_as_typed_error() {
+        let started = Instant::now();
+        let err = race_write_body_drain(
+            std::future::pending::<reqwest::Result<()>>(),
+            Duration::from_millis(50),
+        )
+        .await
+        .expect_err("stalled body must not hang");
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "timeout path hung: {:?}",
+            started.elapsed()
+        );
+        match err {
+            Error::Request(RequestError::Timeout { message }) => {
+                assert!(
+                    message.contains("drain"),
+                    "unexpected timeout message: {message}"
+                );
+            }
+            other => panic!("expected RequestError::Timeout, got {other:?}"),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn completing_body_drain_succeeds_before_timeout() {
+        race_write_body_drain(
+            async { Ok::<(), reqwest::Error>(()) },
+            Duration::from_secs(1),
+        )
+        .await
+        .expect("empty body must drain");
     }
 }
