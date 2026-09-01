@@ -190,6 +190,44 @@ mod tests {
         assert_eq!(visited, 1);
     }
 
+    /// `b04e05c` leftover-drain (`while stream.next().await.is_some()`)
+    /// after a BrowserHttp win. That poll resumes pkarr's generator and
+    /// is the wasm `unreachable` path on a canceled/CORS sibling GET.
+    #[test]
+    #[should_panic(expected = "leftover pkarr stream item")]
+    fn awaiting_leftover_items_after_browser_http_is_the_panic_path() {
+        let items = [
+            (BrowserEndpointRank::BrowserHttp, "http"),
+            (BrowserEndpointRank::IcannHttps, "leftover"),
+        ];
+        let mut iter = items.into_iter().enumerate().map(|(i, item)| {
+            if i > 0 {
+                panic!("leftover pkarr stream item was visited after BrowserHttp");
+            }
+            item
+        });
+        let chosen = select_best_browser_endpoint(&mut iter);
+        assert_eq!(chosen, Some("http"));
+        while iter.next().is_some() {}
+    }
+
+    #[test]
+    fn unused_items_after_browser_http_are_dropped_not_forced() {
+        let items = [
+            (BrowserEndpointRank::BrowserHttp, "http"),
+            (BrowserEndpointRank::IcannHttps, "leftover"),
+        ];
+        let mut iter = items.into_iter().enumerate().map(|(i, item)| {
+            if i > 0 {
+                panic!("leftover pkarr stream item was visited after BrowserHttp");
+            }
+            item
+        });
+        let chosen = select_best_browser_endpoint(&mut iter);
+        assert_eq!(chosen, Some("http"));
+        drop(iter);
+    }
+
     #[test]
     fn select_empty_is_none() {
         let chosen = select_best_browser_endpoint::<_, &str>([]);

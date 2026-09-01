@@ -113,13 +113,17 @@ impl PubkyHttpClient {
             .into());
         };
 
-        self.apply_endpoint_to_url(url, &endpoint)?;
+        // Do not await leftover stream items. pkarr's endpoint generator
+        // parks at `yield` after the first usable record; the next `poll`
+        // can `resolve()` another pubkey (fresh relay GETs) and races
+        // reqwest's wasm AbortGuard on canceled sibling pkarr fetches
+        // (`RuntimeError: unreachable`). Unused Endpoint values drop
+        // synchronously here. That Drop is not the homeserver write —
+        // write AbortGuard is owned by the later PUT/DELETE Response
+        // and is still drained by `commit_issued_http_write`.
+        drop(stream);
 
-        // Remaining HTTPS SVCB records are already in memory from the signed
-        // packet. Finish the stream so Drop cannot sit on the same turn as
-        // the homeserver write we are about to issue. Resolver racing (pkarr
-        // GETs) already completed inside the first `stream.next()`.
-        while stream.next().await.is_some() {}
+        self.apply_endpoint_to_url(url, &endpoint)?;
 
         cross_log!(debug, "Transformed URL to {}", url.as_str());
 

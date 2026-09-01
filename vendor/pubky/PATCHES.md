@@ -28,5 +28,8 @@ Patches relative to crates.io 0.8.0:
    dropped; discarding an unread 2xx write cancelled the request
    (`net::ERR_ABORTED`, `canceled=true`) before the homeserver committed.
    `Ok` now means the write completed. Remaining pkarr HTTPS SVCB records
-   after browser endpoint selection are drained so stream `Drop` cannot sit
-   on the same turn as the write. Resolver racing (pkarr GETs) is unchanged.
+   after a BrowserHttp win are **dropped, not awaited**. Awaiting leftover
+   generator items resumes `resolve()` (fresh relay GETs) and races
+   reqwest's wasm AbortGuard on canceled sibling pkarr fetches, which
+   trapped as `RuntimeError: unreachable` during `publicGet`. Write-body
+   drain is unchanged; leftover await-drain was the GET/pkarr panic.
