@@ -1539,6 +1539,42 @@ export function signOutSession(session) {
 }
 
 /**
+ * Verify a UKD AppCert signature.
+ *
+ * Binds `pubky_crypto::ukd::verify_app_cert`. `issuerPubky` accepts z-base-32
+ * or 64-hex (the root PKARR identity that signed the cert). Returns the
+ * lowercase 32-character `cert_id` hex on success.
+ * @param {string} issuer_pubky
+ * @param {string} cert_body_hex
+ * @param {string} sig_hex
+ * @returns {string}
+ */
+export function verifyAppCert(issuer_pubky, cert_body_hex, sig_hex) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const ptr0 = passStringToWasm0(issuer_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(cert_body_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.verifyAppCert(ptr0, len0, ptr1, len1, ptr2, len2);
+        var ptr4 = ret[0];
+        var len4 = ret[1];
+        if (ret[3]) {
+            ptr4 = 0; len4 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
+    } finally {
+        wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
  * Generate a random X25519 keypair.
  *
  * Returns `{ publicKey, secretKey }` as lowercase 64-character hex strings.
@@ -1967,12 +2003,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1279, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1273, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1105, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1099, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1);
             return ret;
         },
