@@ -115,6 +115,8 @@ features = [
 [dev-dependencies.httpmock]
 version = "0.7"
 
+# Shipped native HTTP stack. reqwest 0.12 must stay out of this graph
+# (it is workspace-dev-only via other crates). See paykit-ffi reqwest test.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.reqwest]
 version = "0.13.2"
 features = [

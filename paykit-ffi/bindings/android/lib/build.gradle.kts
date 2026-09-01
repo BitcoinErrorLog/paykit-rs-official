@@ -118,6 +118,40 @@ tasks.named("preBuild") {
     dependsOn(extractRustlsPlatformVerifierClasses)
 }
 
+val verifyJniProvenance by tasks.registering {
+    group = "verification"
+    description = "Fails if jniLibs are Git LFS pointers or do not match current Cargo source."
+
+    doLast {
+        val script = rootProject.layout.projectDirectory.file("../../../scripts/android-jni-freshness.sh").asFile
+        if (!script.isFile) {
+            throw GradleException("jni freshness script missing at '${script.path}'")
+        }
+        val stdout = ByteArrayOutputStream()
+        val stderr = ByteArrayOutputStream()
+        val result = exec {
+            workingDir = rootProject.layout.projectDirectory.dir("../../..").asFile
+            commandLine("bash", script.absolutePath, "verify")
+            standardOutput = stdout
+            errorOutput = stderr
+            isIgnoreExitValue = true
+        }
+        if (result.exitValue != 0) {
+            throw GradleException(
+                "Direct Gradle cannot package Android natives: ${stderr.toString().ifBlank { stdout.toString() }}"
+            )
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(verifyJniProvenance)
+}
+
+tasks.matching { it.name == "mergeReleaseJniLibFolders" || it.name == "bundleReleaseAar" }.configureEach {
+    dependsOn(verifyJniProvenance)
+}
+
 dependencies {
     implementation("net.java.dev.jna:jna:5.17.0@aar")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
@@ -194,6 +228,14 @@ val validateReleaseNativeLibraries by tasks.registering {
             val lib = layout.projectDirectory.file("src/main/jniLibs/$abi/libpaykit.so").asFile
             if (!lib.isFile) {
                 throw GradleException("Android native library missing at '${lib.path}'")
+            }
+            val header = lib.inputStream().use { it.readNBytes(32) }
+            val headerText = header.toString(Charsets.US_ASCII)
+            if (headerText.contains("git-lfs")) {
+                throw GradleException("Android native library is a Git LFS pointer, not a built ELF: '${lib.path}'")
+            }
+            if (header.size < 4 || header[0] != 0x7f.toByte() || header[1] != 'E'.code.toByte() || header[2] != 'L'.code.toByte() || header[3] != 'F'.code.toByte()) {
+                throw GradleException("Android native library is not an ELF shared object: '${lib.path}'")
             }
 
             val (sectionsExit, sections) = runReadelf(readelf, "-S", lib.absolutePath)

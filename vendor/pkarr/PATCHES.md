@@ -4,12 +4,12 @@ Source: crates.io `pkarr` 6.0.0 (`997d5cbd9be48de01468085ecb82e951b82a04496cd76b
 
 This tree is byte-identical to that crate except:
 
-1. `Cargo.toml` / `Cargo.toml.orig` add optional native `webpki-roots` 1 to the `tls` feature, `rcgen` 0.14 as a dev-dependency for TLS fixture tests, and an unused `internal-relay-tests` feature (see item 5).
+1. `Cargo.toml` / `Cargo.toml.orig` add optional native `webpki-roots` 1 to the `tls` feature, `rcgen` 0.14 as a dev-dependency for TLS fixture tests, and an unused `internal-relay-tests` feature (see item 5). `Cargo.toml` also drops the published `resolver = "3"` key so the workspace `resolver = "2"` applies without a cargo warning.
 2. `src/android_webpki_https.rs` (new) builds rustls + Mozilla/`webpki` HTTPS for Android ICANN hosts.
 3. `src/lib.rs` exports `android_webpki_https` when `tls` is enabled on native targets.
 4. `src/client/relays.rs` uses that config for `RelaysClient` HTTPS on Android.
 5. `src/client.rs` does not compile the upstream `pkarr-relay` path-crate integration tests (`internal-relay-tests` feature, not enabled). Those tests are unpublished on crates.io.
-6. `src/extra/lmdb_cache.rs` caps `MAX_MAP_SIZE` with `usize::MAX` on 32-bit targets so `armeabi-v7a` / `x86` Android builds do not fail `overflowing_literals`. 64-bit keeps the upstream 10 TB cap.
+6. `src/extra/lmdb_cache.rs` uses a checked `compute_map_size` that clamps into `[10 MiB, MAX_MAP_SIZE]`. 64-bit `MAX_MAP_SIZE` stays the upstream 10 TiB. 32-bit uses a 1 GiB bound (not `usize::MAX` / ~4 GiB) so `armeabi-v7a` / `x86` Android builds neither overflow the 10 TiB literal nor request an unbounded LMDB map.
 
 ## Why
 

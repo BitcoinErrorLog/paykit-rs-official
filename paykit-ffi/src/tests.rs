@@ -629,17 +629,77 @@ async fn test_ffi_session_provider_reimports_repeatedly() {
     }
 }
 
+#[cfg(unix)]
+fn vendor_integrity_script() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../scripts/verify-vendor-integrity.sh")
+}
+
+#[cfg(unix)]
+fn vendor_workspace_root() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
+}
+
+#[cfg(unix)]
 #[test]
 fn vendor_pubky_and_pkarr_match_crates_io_except_documented_deltas() {
-    let script = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../scripts/verify-vendor-integrity.sh");
+    let script = vendor_integrity_script();
     let status = std::process::Command::new("bash")
         .arg(&script)
-        .current_dir(script.parent().and_then(|p| p.parent()).unwrap())
+        .current_dir(vendor_workspace_root())
         .status()
         .expect("vendor integrity script must run");
     assert!(
         status.success(),
         "vendored pubky/pkarr must match crates.io except PATCHES.md allowlists"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn vendor_integrity_rejects_tampered_crate_archive() {
+    let script = vendor_integrity_script();
+    let status = std::process::Command::new("bash")
+        .arg(&script)
+        .arg("--self-test-tamper")
+        .current_dir(vendor_workspace_root())
+        .status()
+        .expect("vendor integrity tamper self-test must run");
+    assert!(
+        status.success(),
+        "vendor integrity must reject a corrupt crates.io archive hash"
+    );
+}
+
+#[test]
+fn paykit_ffi_normal_graph_ships_reqwest_013_not_012() {
+    let output = std::process::Command::new("cargo")
+        .args([
+            "tree",
+            "-p",
+            "paykit-ffi",
+            "-e",
+            "normal,build",
+            "--prefix",
+            "none",
+            "--format",
+            "{p}",
+        ])
+        .current_dir(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."))
+        .output()
+        .expect("cargo tree must run");
+    assert!(
+        output.status.success(),
+        "cargo tree failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let tree = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        tree.lines().any(|line| line.starts_with("reqwest v0.13.")),
+        "paykit-ffi must ship reqwest 0.13: {tree}"
+    );
+    assert!(
+        !tree.lines().any(|line| line.starts_with("reqwest v0.12.")),
+        "reqwest 0.12 must stay off the paykit-ffi normal/build graph: {tree}"
     );
 }

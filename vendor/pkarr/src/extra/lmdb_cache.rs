@@ -19,12 +19,25 @@ use ntimestamp::Timestamp;
 
 use crate::{Cache, CacheKey, SignedPacket};
 
+/// 10 TiB. The upstream crates.io literal; 32-bit `usize` cannot hold it.
 #[cfg(target_pointer_width = "64")]
-const MAX_MAP_SIZE: usize = 10995116277760; // 10 TB
-                                            // 32-bit `usize` cannot hold the upstream 10 TB literal (`overflowing_literals`).
+const MAX_MAP_SIZE: usize = 10 * 1024 * 1024 * 1024 * 1024;
+/// 1 GiB. A bounded 32-bit cap (not `usize::MAX` / ~4 GiB) so Android
+/// `armeabi-v7a` / `x86` cannot request an unbounded LMDB map.
 #[cfg(target_pointer_width = "32")]
-const MAX_MAP_SIZE: usize = usize::MAX;
+const MAX_MAP_SIZE: usize = 1024 * 1024 * 1024;
 const MIN_MAP_SIZE: usize = 10 * 1024 * 1024; // 10 mb
+
+fn compute_map_size(capacity: usize) -> usize {
+    let page_size = page_size::get();
+    capacity
+        .checked_mul(SignedPacket::MAX_BYTES as usize)
+        .and_then(|x| x.checked_add(page_size))
+        .and_then(|x| x.checked_div(page_size))
+        .and_then(|x| x.checked_mul(page_size))
+        .unwrap_or(MAX_MAP_SIZE)
+        .clamp(MIN_MAP_SIZE, MAX_MAP_SIZE)
+}
 
 const SIGNED_PACKET_TABLE: &str = "pkarrcache:signed_packet";
 const KEY_TO_TIME_TABLE: &str = "pkarrcache:key_to_time";
@@ -93,22 +106,15 @@ impl Debug for LmdbCache {
 impl LmdbCache {
     /// Creates a new [LmdbCache] at the `env_path` and set the [heed::EnvOpenOptions::map_size]
     /// to a multiple of the `capacity` by [SignedPacket::MAX_BYTES], aligned to system's page size,
-    /// a maximum of 10 TB, and a minimum of 10 MB.
+    /// a maximum of 10 TiB on 64-bit / 1 GiB on 32-bit, and a minimum of 10 MB.
     ///
     /// # Safety
     /// LmdbCache uses LMDB, [opening][heed::EnvOpenOptions::open] which is marked unsafe,
     /// because the possible Undefined Behavior (UB) if the lock file is broken.
     pub unsafe fn open(env_path: &Path, capacity: usize) -> Result<Self, Error> {
-        let page_size = page_size::get();
-
-        // Page aligned but more than enough bytes for `capacity` many SignedPacket
-        let map_size = capacity
-            .checked_mul(SignedPacket::MAX_BYTES as usize)
-            .and_then(|x| x.checked_add(page_size))
-            .and_then(|x| x.checked_div(page_size))
-            .and_then(|x| x.checked_mul(page_size))
-            .unwrap_or(MAX_MAP_SIZE)
-            .max(MIN_MAP_SIZE);
+        // Page aligned but more than enough bytes for `capacity` many SignedPacket,
+        // then clamped into [MIN_MAP_SIZE, MAX_MAP_SIZE]. Overflow uses MAX_MAP_SIZE.
+        let map_size = compute_map_size(capacity);
 
         fs::create_dir_all(env_path)?;
 
@@ -321,6 +327,30 @@ mod tests {
         let env_path = std::env::temp_dir().join(Timestamp::now().to_string());
 
         LmdbCache::open_unsafe(&env_path, usize::MAX).unwrap();
+    }
+
+    #[test]
+    fn map_size_is_page_aligned_and_clamped() {
+        let page_size = page_size::get();
+        assert_eq!(compute_map_size(1) % page_size, 0);
+        assert!(compute_map_size(1) >= MIN_MAP_SIZE);
+        assert!(compute_map_size(1) <= MAX_MAP_SIZE);
+        assert_eq!(compute_map_size(usize::MAX), MAX_MAP_SIZE);
+        assert_eq!(compute_map_size(0), MIN_MAP_SIZE);
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn max_map_size_is_10_tib_on_64_bit() {
+        assert_eq!(MAX_MAP_SIZE, 10 * 1024 * 1024 * 1024 * 1024);
+        assert_eq!(MAX_MAP_SIZE, 10995116277760);
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    #[test]
+    fn max_map_size_is_1_gib_on_32_bit() {
+        assert_eq!(MAX_MAP_SIZE, 1024 * 1024 * 1024);
+        assert!(MAX_MAP_SIZE < usize::MAX);
     }
 
     #[test]

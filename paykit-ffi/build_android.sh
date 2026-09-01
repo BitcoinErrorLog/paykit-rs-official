@@ -263,6 +263,10 @@ unset CARGO_PROFILE_RELEASE_STRIP
 echo "Removing spurious intermediate .so files from jniLibs..."
 find "$JNILIBS_DIR" -name "*.so" ! -name "libpaykit.so" -delete
 
+echo "Writing Android jniLibs source provenance..."
+"$(cd "$(dirname "$0")/.." && pwd)/scripts/android-jni-freshness.sh" write
+"$(cd "$(dirname "$0")/.." && pwd)/scripts/android-jni-freshness.sh" verify
+
 case "$(uname -s)" in
     Darwin*) LIBRARY_PATH="${TARGET_DIR}/release/libpaykit.dylib" ;;
     *)       LIBRARY_PATH="${TARGET_DIR}/release/libpaykit.so" ;;
