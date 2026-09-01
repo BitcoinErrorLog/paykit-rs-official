@@ -12,7 +12,11 @@
 ///
 /// Installed on pkarr relay HTTPS (`RelaysClient`) and reused by Paykit's
 /// vendored pubky `icann_http` client. See [`android_webpki_https`].
-#[cfg(all(not(target_family = "wasm"), feature = "tls"))]
+///
+/// Gated on `reqwest-builder` (`tls` + `reqwest/rustls`) so `tls` alone does
+/// not compile reqwest rustls APIs. The shipped Paykit/pubky graph enables
+/// `full`, which includes `reqwest-builder`.
+#[cfg(all(not(target_family = "wasm"), feature = "reqwest-builder"))]
 pub mod android_webpki_https;
 
 #[cfg(client)]

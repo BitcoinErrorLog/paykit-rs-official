@@ -55,11 +55,11 @@ impl RelaysClient {
         Self {
             relays,
             http_client: {
-                #[cfg(all(target_os = "android", feature = "tls"))]
+                #[cfg(all(target_os = "android", feature = "reqwest-builder"))]
                 {
                     crate::android_webpki_https::relays_http_client()
                 }
-                #[cfg(not(all(target_os = "android", feature = "tls")))]
+                #[cfg(not(all(target_os = "android", feature = "reqwest-builder")))]
                 {
                     Client::builder()
                         .build()

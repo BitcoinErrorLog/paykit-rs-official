@@ -43,6 +43,13 @@ repository = "https://github.com/pubky/pkarr"
 [package.metadata.docs.rs]
 all-features = true
 
+# Upstream client tests are gated on feature = "internal-relay-tests".
+# That feature is not declared here so workspace --all-features cannot
+# compile the unpublished pkarr_relay path-crate tests. check-cfg keeps
+# the existing cfg predicate valid without enabling those tests.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("internal-relay-tests"))'] }
+
 [features]
 __client = [
     "signed_packet",
@@ -57,8 +64,6 @@ __client = [
     "dep:wasm-bindgen-futures",
 ]
 default = ["full-client"]
-# Not enabled. Upstream client tests need the unpublished pkarr-relay path crate.
-internal-relay-tests = []
 dht = [
     "dep:mainline",
     "__client",

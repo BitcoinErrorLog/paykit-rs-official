@@ -667,8 +667,78 @@ fn vendor_integrity_rejects_tampered_crate_archive() {
         .expect("vendor integrity tamper self-test must run");
     assert!(
         status.success(),
-        "vendor integrity must reject a corrupt crates.io archive hash"
+        "vendor integrity must reject a corrupt archive and ignore tampered registry/src"
     );
+}
+
+#[cfg(unix)]
+fn jni_freshness_script() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/android-jni-freshness.sh")
+}
+
+#[cfg(unix)]
+#[test]
+fn jni_freshness_self_test_t1_t9() {
+    let script = jni_freshness_script();
+    let output = std::process::Command::new("bash")
+        .arg(&script)
+        .arg("--self-test")
+        .current_dir(vendor_workspace_root())
+        .output()
+        .expect("jni freshness self-test must run");
+    assert!(
+        output.status.success(),
+        "jni freshness T1-T9 failed: {}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn pkarr_feature_matrix_includes_tls_without_reqwest_builder() {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+    let cases: &[&[&str]] = &[
+        &["check", "-p", "pkarr", "--features", "tls"],
+        &[
+            "check",
+            "-p",
+            "pkarr",
+            "--no-default-features",
+            "--features",
+            "tls",
+        ],
+        &[
+            "check",
+            "-p",
+            "pkarr",
+            "--no-default-features",
+            "--features",
+            "relays,tls",
+        ],
+        &[
+            "check",
+            "-p",
+            "pkarr",
+            "--no-default-features",
+            "--features",
+            "reqwest-builder",
+        ],
+        &["check", "-p", "pkarr", "--features", "full"],
+    ];
+    for args in cases {
+        let output = std::process::Command::new("cargo")
+            .args(*args)
+            .current_dir(&root)
+            .output()
+            .expect("pkarr feature check must run");
+        assert!(
+            output.status.success(),
+            "cargo {} failed: {}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[test]

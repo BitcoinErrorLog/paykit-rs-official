@@ -168,8 +168,6 @@ extra = ["endpoints", "lmdb-cache", "reqwest-resolve", "tls", "reqwest-builder"]
 full = ["full-client", "extra"]
 
 default = ["full-client"]
-# Not enabled. Upstream client tests need the unpublished pkarr-relay path crate.
-internal-relay-tests = []
 
 ## Enable client dependencies.
 ##
@@ -191,6 +189,13 @@ __client = [
 
 [package.metadata.docs.rs]
 all-features = true
+
+# Upstream client tests are gated on feature = "internal-relay-tests".
+# That feature is not declared here so workspace --all-features cannot
+# compile the unpublished pkarr_relay path-crate tests. check-cfg keeps
+# the existing cfg predicate valid without enabling those tests.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("internal-relay-tests"))'] }
 
 [[example]]
 name = "http-get"

@@ -2,6 +2,8 @@ import groovy.json.JsonSlurper
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.ZipFile
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 
 plugins {
     id("com.android.library")
@@ -118,20 +120,27 @@ tasks.named("preBuild") {
     dependsOn(extractRustlsPlatformVerifierClasses)
 }
 
-val verifyJniProvenance by tasks.registering {
-    group = "verification"
-    description = "Fails if jniLibs are Git LFS pointers or do not match current Cargo source."
+abstract class VerifyJniProvenanceTask : DefaultTask() {
+    @get:Internal
+    abstract val script: RegularFileProperty
 
-    doLast {
-        val script = rootProject.layout.projectDirectory.file("../../../scripts/android-jni-freshness.sh").asFile
-        if (!script.isFile) {
-            throw GradleException("jni freshness script missing at '${script.path}'")
+    @get:Internal
+    abstract val repoRoot: DirectoryProperty
+
+    @get:Inject
+    abstract val execOperations: ExecOperations
+
+    @TaskAction
+    fun verify() {
+        val scriptFile = script.get().asFile
+        if (!scriptFile.isFile) {
+            throw GradleException("jni freshness script missing at '${scriptFile.path}'")
         }
         val stdout = ByteArrayOutputStream()
         val stderr = ByteArrayOutputStream()
-        val result = exec {
-            workingDir = rootProject.layout.projectDirectory.dir("../../..").asFile
-            commandLine("bash", script.absolutePath, "verify")
+        val result = execOperations.exec {
+            workingDir = repoRoot.get().asFile
+            commandLine("bash", scriptFile.absolutePath, "verify")
             standardOutput = stdout
             errorOutput = stderr
             isIgnoreExitValue = true
@@ -142,6 +151,14 @@ val verifyJniProvenance by tasks.registering {
             )
         }
     }
+}
+
+val verifyJniProvenance by tasks.registering(VerifyJniProvenanceTask::class) {
+    group = "verification"
+    description = "Fails if jniLibs are Git LFS pointers or do not match current Cargo source."
+    script.set(rootProject.layout.projectDirectory.file("../../../scripts/android-jni-freshness.sh"))
+    repoRoot.set(rootProject.layout.projectDirectory.dir("../../.."))
+    outputs.upToDateWhen { false }
 }
 
 tasks.named("preBuild") {

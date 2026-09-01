@@ -21,7 +21,8 @@ mod relays;
 
 // crates.io pkarr 6.0.0 tests pull in the unpublished workspace `pkarr-relay`
 // path crate. This vendor is the published crate plus the Android WebPKI
-// delta, so those integration tests are not compiled here.
+// delta. The feature is not declared, so --all-features cannot enable these
+// tests; check-cfg keeps the predicate valid.
 #[cfg(all(test, not(wasm_browser), feature = "internal-relay-tests"))]
 mod tests;
 #[cfg(all(test, wasm_browser))]

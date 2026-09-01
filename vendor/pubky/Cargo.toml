@@ -172,8 +172,12 @@ unnecessary_safety_doc = "warn"
 unneeded_field_pattern = "warn"
 unused_result_ok = "warn"
 
+# crates.io enables these groups. As a workspace member they are promoted
+# by Paykit CI `-D warnings`, and the cargo group also flags sibling
+# workspace packages (e.g. paykit-ffi metadata). Keep compiling/testing
+# this crate; do not treat upstream pedantic/cargo as Paykit errors.
 [lints.clippy.cargo]
-level = "warn"
+level = "allow"
 priority = -1
 
 [lints.clippy.complexity]
@@ -185,7 +189,7 @@ level = "warn"
 priority = -1
 
 [lints.clippy.pedantic]
-level = "warn"
+level = "allow"
 priority = -1
 
 [lints.clippy.perf]
