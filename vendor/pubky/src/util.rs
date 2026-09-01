@@ -21,12 +21,17 @@ pub async fn check_http_status(response: Response) -> Result<Response> {
     }
 
     let status = response.status();
-    let message = response.text().await.unwrap_or_else(|_| {
-        status
+    // Same bound as the 2xx write-ack drain: a hostile homeserver can
+    // trickle an error body forever. Timeout keeps the HTTP error and
+    // substitutes the canonical reason — it must not become Timeout,
+    // because the write already failed with a non-2xx status.
+    let message = match race_write_body_drain(response.text(), WRITE_BODY_DRAIN_TIMEOUT).await {
+        Ok(text) => text,
+        Err(_) => status
             .canonical_reason()
             .unwrap_or("Unknown Error")
-            .to_string()
-    });
+            .to_string(),
+    };
 
     Err(Error::from(RequestError::Server { status, message }))
 }
@@ -49,7 +54,9 @@ pub async fn check_http_status(response: Response) -> Result<Response> {
 ///
 /// GET callers must keep the unread body. Only call this on write responses.
 pub(crate) async fn commit_issued_http_write(response: Response) -> Result<()> {
-    race_write_body_drain(response.bytes(), WRITE_BODY_DRAIN_TIMEOUT).await
+    race_write_body_drain(response.bytes(), WRITE_BODY_DRAIN_TIMEOUT)
+        .await
+        .map(|_| ())
 }
 
 fn write_body_drain_timeout_error() -> Error {
@@ -58,16 +65,17 @@ fn write_body_drain_timeout_error() -> Error {
     })
 }
 
-/// Race a body-read future against `timeout`. Shared by the production drain
-/// and the native unit test that models a stream that never completes.
-pub(crate) async fn race_write_body_drain<F, T>(drain: F, timeout: Duration) -> Result<()>
+/// Race a body-read future against `timeout`. Shared by the production drain,
+/// the error-body read in [`check_http_status`], and native unit tests that
+/// model a stream that never completes.
+pub(crate) async fn race_write_body_drain<F, T>(drain: F, timeout: Duration) -> Result<T>
 where
     F: Future<Output = std::result::Result<T, reqwest::Error>>,
 {
     #[cfg(not(target_arch = "wasm32"))]
     {
         match tokio::time::timeout(timeout, drain).await {
-            Ok(Ok(_)) => Ok(()),
+            Ok(Ok(value)) => Ok(value),
             Ok(Err(err)) => Err(err.into()),
             Err(_) => Err(write_body_drain_timeout_error()),
         }
@@ -81,16 +89,39 @@ where
         let drain = pin!(drain);
         let timer = pin!(wasm_sleep(timeout));
         match select(drain, timer).await {
-            Either::Left((Ok(_), _)) => Ok(()),
+            Either::Left((Ok(value), _)) => Ok(value),
             Either::Left((Err(err), _)) => Err(err.into()),
             Either::Right((_, _drain)) => Err(write_body_drain_timeout_error()),
         }
     }
 }
 
+/// Clears the `setTimeout` handle if the sleep future is dropped (the drain
+/// won the race). A fired timer is a no-op to `clearTimeout`.
+#[cfg(target_arch = "wasm32")]
+struct WasmTimeoutGuard {
+    id: Option<i32>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for WasmTimeoutGuard {
+    fn drop(&mut self) {
+        let Some(id) = self.id.take() else {
+            return;
+        };
+        let global = js_sys::global();
+        let Ok(clear) = js_sys::Reflect::get(&global, &"clearTimeout".into()) else {
+            return;
+        };
+        let clear = js_sys::Function::from(clear);
+        let _ = clear.call1(&global, &id.into());
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 async fn wasm_sleep(timeout: Duration) {
     let ms = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
+    let id_cell = std::cell::Cell::new(None::<i32>);
     let promise = js_sys::Promise::new(&mut |resolve, _reject| {
         let global = js_sys::global();
         let Ok(set_timeout) = js_sys::Reflect::get(&global, &"setTimeout".into()) else {
@@ -98,8 +129,19 @@ async fn wasm_sleep(timeout: Duration) {
             return;
         };
         let set_timeout = js_sys::Function::from(set_timeout);
-        let _ = set_timeout.call2(&global, &resolve, &ms.into());
+        match set_timeout.call2(&global, &resolve, &ms.into()) {
+            Ok(handle) => {
+                if let Some(n) = handle.as_f64() {
+                    id_cell.set(Some(n as i32));
+                }
+            }
+            Err(_) => {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::UNDEFINED);
+            }
+        }
     });
+    // Promise executor runs synchronously; the id is set before we await.
+    let _guard = WasmTimeoutGuard { id: id_cell.get() };
     let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }
 
@@ -189,5 +231,30 @@ mod tests {
         )
         .await
         .expect("empty body must drain");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn stalled_error_body_falls_back_to_canonical_reason() {
+        let started = Instant::now();
+        let err = race_write_body_drain(
+            std::future::pending::<reqwest::Result<String>>(),
+            Duration::from_millis(50),
+        )
+        .await
+        .expect_err("stalled error body must not hang");
+        assert!(
+            started.elapsed() < Duration::from_millis(500),
+            "error-body timeout path hung: {:?}",
+            started.elapsed()
+        );
+        match err {
+            Error::Request(RequestError::Timeout { .. }) => {}
+            other => panic!("expected RequestError::Timeout, got {other:?}"),
+        }
+        let message = reqwest::StatusCode::INTERNAL_SERVER_ERROR
+            .canonical_reason()
+            .unwrap_or("Unknown Error");
+        assert_eq!(message, "Internal Server Error");
     }
 }
