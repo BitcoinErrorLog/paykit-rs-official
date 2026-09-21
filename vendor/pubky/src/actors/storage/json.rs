@@ -1,9 +1,7 @@
-use reqwest::Response;
-
 use super::core::{PublicStorage, SessionStorage};
 use super::resource::{IntoPubkyResource, IntoResourcePath};
 use crate::Result;
-use crate::util::check_http_status;
+use crate::util::{check_http_status, commit_issued_http_write};
 
 //
 // SessionStorage (as-me)
@@ -32,14 +30,16 @@ impl SessionStorage {
         Ok(resp.json::<T>().await?)
     }
 
-    /// PUT JSON to an **absolute path** and return the raw `Response`.
+    /// PUT JSON to an **absolute path**.
     ///
-    /// Serializes `body` as JSON.
+    /// Serializes `body` as JSON. `Ok(())` means the write completed; the
+    /// response body is consumed so a wasm `fetch` cannot be aborted by
+    /// dropping an unread `Response`.
     ///
     /// # Errors
     /// - Returns [`crate::errors::Error::Parse`] if `path` cannot be converted into a valid resource path.
     /// - Propagates transport failures or serialization errors encountered while sending the request.
-    pub async fn put_json<P, B>(&self, path: P, body: &B) -> Result<Response>
+    pub async fn put_json<P, B>(&self, path: P, body: &B) -> Result<()>
     where
         P: IntoResourcePath + Send,
         B: serde::Serialize + Sync + ?Sized,
@@ -50,7 +50,8 @@ impl SessionStorage {
             .json(body)
             .send()
             .await?;
-        check_http_status(resp).await
+        let resp = check_http_status(resp).await?;
+        commit_issued_http_write(resp).await
     }
 }
 

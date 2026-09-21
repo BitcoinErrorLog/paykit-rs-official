@@ -238,29 +238,39 @@ impl Pkdns {
             return Ok(());
         }
 
-        // 4) Publish with small retry loop on retryable pkarr errors.
-        self.publish_with_retries(kp, &pubky, &host_str, existing)
-            .await
+        // 4) Publish with a bounded retry. CAS/concurrency failures re-resolve
+        // the latest packet so the next compare-and-swap is not stuck on a
+        // stale timestamp (`publish_homeserver_force` and `IfStale` share this).
+        self.publish_with_retries(
+            kp,
+            &pubky,
+            &host_str,
+            existing,
+            matches!(mode, PublishMode::Force),
+        )
+        .await
     }
 
     async fn publish_homeserver_inner(
         &self,
         keypair: &Keypair,
         host: &str,
-        existing: Option<SignedPacket>,
+        existing: Option<&SignedPacket>,
+        cas: Option<Timestamp>,
     ) -> Result<()> {
-        let signed_packet = Self::build_homeserver_packet(keypair, host, existing.as_ref())?;
+        let signed_packet = Self::build_homeserver_packet(keypair, host, existing)?;
 
         cross_log!(
             debug,
-            "Publishing `_pubky` packet for {} targeting host {}",
+            "Publishing `_pubky` packet for {} targeting host {} (cas={:?})",
             keypair.public_key(),
-            host
+            host,
+            cas
         );
 
         self.client
             .pkarr()
-            .publish(&signed_packet, existing.map(|s| s.timestamp()))
+            .publish(&signed_packet, cas)
             .await
             .map_err(PkarrError::from)?;
 
@@ -340,40 +350,61 @@ impl Pkdns {
         keypair: &Keypair,
         pubky: &PublicKey,
         host: &str,
-        existing: Option<SignedPacket>,
+        mut existing: Option<SignedPacket>,
+        force: bool,
     ) -> Result<()> {
-        for attempt in 1..=3 {
+        let mut last_err = None;
+        let mut saw_cas = false;
+
+        let max_attempts = publish_max_attempts(force);
+        for attempt in 1..=max_attempts {
+            let cas =
+                cas_timestamp_for_attempt(existing.as_ref(), force, saw_cas, attempt, max_attempts);
             cross_log!(
                 info,
-                "Publishing homeserver for {} (attempt {attempt}) -> host {}",
+                "Publishing homeserver for {} (attempt {attempt}) -> host {} cas={:?}",
                 pubky,
-                host
+                host,
+                cas
             );
             match self
-                .publish_homeserver_inner(keypair, host, existing.clone())
+                .publish_homeserver_inner(keypair, host, existing.as_ref(), cas)
                 .await
             {
                 Ok(()) => return Ok(()),
-                Err(err) if Self::should_retry(&err, attempt) => {
-                    cross_log!(
-                        warn,
-                        "Retryable PKARR error while publishing {}: {}; retrying",
-                        pubky,
-                        err
-                    );
-                }
-                Err(err) => {
-                    cross_log!(error, "Failed to publish homeserver for {}: {}", pubky, err);
-                    return Err(err);
-                }
+                Err(err) => match classify_publish_retry(&err, attempt, max_attempts) {
+                    Some(PublishRetry::ReResolve) => {
+                        cross_log!(
+                            warn,
+                            "Concurrency error while publishing {}: {}; re-resolving latest packet",
+                            pubky,
+                            err
+                        );
+                        saw_cas = true;
+                        bounded_publish_backoff(attempt).await;
+                        restore_cas_baseline_in_pkarr_cache(self.client.pkarr(), existing.as_ref());
+                        existing = self.client.pkarr().resolve_most_recent(pubky).await;
+                        last_err = Some(err);
+                    }
+                    Some(PublishRetry::SameCas) => {
+                        cross_log!(
+                            warn,
+                            "Retryable PKARR error while publishing {}: {}; retrying",
+                            pubky,
+                            err
+                        );
+                        bounded_publish_backoff(attempt).await;
+                        last_err = Some(err);
+                    }
+                    None => {
+                        cross_log!(error, "Failed to publish homeserver for {}: {}", pubky, err);
+                        return Err(err);
+                    }
+                },
             }
         }
 
-        Ok(())
-    }
-
-    const fn should_retry(err: &Error, attempt: u32) -> bool {
-        matches!(err, Error::Pkarr(pk) if pk.is_retryable() && attempt < 3)
+        Err(last_err.expect("publish retry loop stores the last retryable error"))
     }
 
     fn build_homeserver_packet(
@@ -406,6 +437,159 @@ impl Pkdns {
 enum PublishMode {
     Force,
     IfStale,
+}
+
+/// How to recover from a failed `_pubky` publish attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PublishRetry {
+    /// CAS / concurrency: the timestamp we compared against is stale. Re-resolve.
+    ReResolve,
+    /// Transient publish/query: retry with the same CAS timestamp.
+    SameCas,
+}
+
+const PUBLISH_MAX_ATTEMPTS_FORCE: u32 = 6;
+const PUBLISH_MAX_ATTEMPTS_STALE: u32 = 3;
+
+fn publish_max_attempts(force: bool) -> u32 {
+    if force {
+        PUBLISH_MAX_ATTEMPTS_FORCE
+    } else {
+        PUBLISH_MAX_ATTEMPTS_STALE
+    }
+}
+
+/// pkarr writes a packet into its client cache *before* the remote
+/// publish confirms. A CAS failure therefore leaves a phantom packet
+/// newer than the relay's latest. `resolve_most_recent` then uses that
+/// timestamp as the query floor and never sees the real latest. Restore
+/// the CAS baseline so the next resolve can observe the relay's packet.
+fn restore_cas_baseline_in_pkarr_cache(client: &pkarr::Client, previous: Option<&SignedPacket>) {
+    let Some(packet) = previous else {
+        return;
+    };
+    let Some(cache) = client.cache() else {
+        return;
+    };
+    cache.put(&packet.public_key().into(), packet);
+}
+
+fn is_concurrency_failure(err: &Error) -> bool {
+    matches!(
+        err,
+        Error::Pkarr(PkarrError::Publish(
+            pkarr::errors::PublishError::Concurrency(_)
+        ))
+    )
+}
+
+fn is_unexpected_relay_responses(err: &Error) -> bool {
+    matches!(
+        err,
+        Error::Pkarr(PkarrError::Publish(
+            pkarr::errors::PublishError::UnexpectedResponses
+        ))
+    )
+}
+
+fn classify_publish_retry(err: &Error, attempt: u32, max_attempts: u32) -> Option<PublishRetry> {
+    if attempt >= max_attempts {
+        return None;
+    }
+    if is_concurrency_failure(err) || is_unexpected_relay_responses(err) {
+        return Some(PublishRetry::ReResolve);
+    }
+    if matches!(err, Error::Pkarr(pk) if pk.is_retryable()) {
+        return Some(PublishRetry::SameCas);
+    }
+    None
+}
+
+/// Force-publish last attempt drops If-Match after a CAS failure so a
+/// phantom cache entry or a relay that still disagrees with our resolved
+/// timestamp cannot loop forever. `IfStale` keeps CAS on every attempt.
+fn cas_timestamp_for_attempt(
+    existing: Option<&SignedPacket>,
+    force: bool,
+    saw_cas: bool,
+    attempt: u32,
+    max_attempts: u32,
+) -> Option<Timestamp> {
+    if force && saw_cas && attempt == max_attempts {
+        return None;
+    }
+    existing.map(SignedPacket::timestamp)
+}
+
+pub(crate) async fn bounded_publish_backoff(attempt: u32) {
+    let millis = match attempt {
+        1 => 100,
+        2 => 300,
+        3 => 600,
+        4 => 2_000,
+        5 => 5_000,
+        _ => 10_000,
+    };
+    #[cfg(not(target_arch = "wasm32"))]
+    tokio::time::sleep(Duration::from_millis(millis)).await;
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::JsCast;
+        let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+            let global = js_sys::global();
+            let Ok(set_timeout) =
+                js_sys::Reflect::get(&global, &wasm_bindgen::JsValue::from_str("setTimeout"))
+            else {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::UNDEFINED);
+                return;
+            };
+            let Ok(set_timeout) = set_timeout.dyn_into::<js_sys::Function>() else {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::UNDEFINED);
+                return;
+            };
+            let _ = set_timeout.call2(
+                &global,
+                &resolve,
+                &wasm_bindgen::JsValue::from_f64(f64::from(millis)),
+            );
+        });
+        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+    }
+}
+
+#[cfg(test)]
+async fn publish_with_retries_loop<P, R, PFut, RFut>(
+    mut existing: Option<SignedPacket>,
+    mut publish: P,
+    mut resolve: R,
+) -> Result<()>
+where
+    P: FnMut(Option<SignedPacket>) -> PFut,
+    PFut: core::future::Future<Output = Result<()>>,
+    R: FnMut() -> RFut,
+    RFut: core::future::Future<Output = Option<SignedPacket>>,
+{
+    let mut last_err = None;
+
+    for attempt in 1..=PUBLISH_MAX_ATTEMPTS_FORCE {
+        match publish(existing.clone()).await {
+            Ok(()) => return Ok(()),
+            Err(err) => match classify_publish_retry(&err, attempt, PUBLISH_MAX_ATTEMPTS_FORCE) {
+                Some(PublishRetry::ReResolve) => {
+                    bounded_publish_backoff(attempt).await;
+                    existing = resolve().await;
+                    last_err = Some(err);
+                }
+                Some(PublishRetry::SameCas) => {
+                    bounded_publish_backoff(attempt).await;
+                    last_err = Some(err);
+                }
+                None => return Err(err),
+            },
+        }
+    }
+
+    Err(last_err.expect("publish retry loop stores the last retryable error"))
 }
 
 /// Pick a host to publish: explicit override or the one found in the DHT packet.
@@ -492,5 +676,131 @@ mod tests {
 
         assert_eq!(republished_dnslink.ttl, original_dnslink.ttl);
         assert_eq!(republished_dnslink.rdata, original_dnslink.rdata);
+    }
+
+    fn cas_failed() -> Error {
+        pkarr::errors::PublishError::Concurrency(pkarr::errors::ConcurrencyError::CasFailed).into()
+    }
+
+    fn homeserver_packet(keypair: &Keypair, host: &str) -> SignedPacket {
+        Pkdns::build_homeserver_packet(keypair, host, None).expect("signed homeserver packet")
+    }
+
+    #[test]
+    fn force_last_attempt_omits_cas_after_concurrency() {
+        let keypair = Keypair::random();
+        let packet = homeserver_packet(&keypair, &Keypair::random().public_key().to_string());
+        assert_eq!(
+            cas_timestamp_for_attempt(
+                Some(&packet),
+                true,
+                true,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+            ),
+            None
+        );
+        assert_eq!(
+            cas_timestamp_for_attempt(Some(&packet), true, true, 2, PUBLISH_MAX_ATTEMPTS_FORCE),
+            Some(packet.timestamp())
+        );
+        assert_eq!(
+            cas_timestamp_for_attempt(
+                Some(&packet),
+                true,
+                false,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+                PUBLISH_MAX_ATTEMPTS_FORCE,
+            ),
+            Some(packet.timestamp())
+        );
+        assert_eq!(
+            cas_timestamp_for_attempt(
+                Some(&packet),
+                false,
+                true,
+                PUBLISH_MAX_ATTEMPTS_STALE,
+                PUBLISH_MAX_ATTEMPTS_STALE,
+            ),
+            Some(packet.timestamp())
+        );
+    }
+
+    #[test]
+    fn classify_cas_re_resolves_until_the_last_attempt() {
+        let err = cas_failed();
+        assert_eq!(
+            classify_publish_retry(&err, 1, PUBLISH_MAX_ATTEMPTS_FORCE),
+            Some(PublishRetry::ReResolve)
+        );
+        assert_eq!(
+            classify_publish_retry(&err, 2, PUBLISH_MAX_ATTEMPTS_FORCE),
+            Some(PublishRetry::ReResolve)
+        );
+        assert_eq!(
+            classify_publish_retry(&err, PUBLISH_MAX_ATTEMPTS_FORCE, PUBLISH_MAX_ATTEMPTS_FORCE),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn cas_retry_re_resolves_instead_of_reusing_stale_timestamp() {
+        let keypair = Keypair::random();
+        let stale_host = Keypair::random().public_key().z32();
+        let fresh_host = Keypair::random().public_key().z32();
+        let stale = homeserver_packet(&keypair, &stale_host);
+        let fresh = homeserver_packet(&keypair, &fresh_host);
+
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<Option<String>>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let resolve_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let seen_publish = seen.clone();
+        let seen_resolve = resolve_count.clone();
+        let fresh_for_resolve = fresh.clone();
+        let fresh_host_for_publish = fresh_host.clone();
+
+        let result = publish_with_retries_loop(
+            Some(stale),
+            {
+                let seen_publish = seen_publish.clone();
+                move |existing| {
+                    let host = existing.as_ref().and_then(extract_host_from_packet);
+                    seen_publish.lock().expect("lock").push(host.clone());
+                    let ok = host.as_deref() == Some(fresh_host_for_publish.as_str());
+                    async move { if ok { Ok(()) } else { Err(cas_failed()) } }
+                }
+            },
+            move || {
+                seen_resolve.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let packet = fresh_for_resolve.clone();
+                async move { Some(packet) }
+            },
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "CAS retry must succeed after re-resolve: {result:?}"
+        );
+        assert_eq!(
+            resolve_count.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "must re-resolve exactly once after the first CAS failure"
+        );
+        let hosts = seen.lock().expect("lock").clone();
+        assert_eq!(hosts, vec![Some(stale_host), Some(fresh_host)]);
+    }
+
+    #[test]
+    fn restore_cas_baseline_overwrites_phantom_cache_entry() {
+        let keypair = Keypair::random();
+        let stale = homeserver_packet(&keypair, &Keypair::random().public_key().to_string());
+        let phantom = homeserver_packet(&keypair, &Keypair::random().public_key().to_string());
+        let client = pkarr::Client::builder().build().expect("pkarr client");
+        let cache = client.cache().expect("cache");
+        cache.put(&phantom.public_key().into(), &phantom);
+        restore_cas_baseline_in_pkarr_cache(&client, Some(&stale));
+        let restored = cache.get(&stale.public_key().into()).expect("restored");
+        assert_eq!(restored.timestamp(), stale.timestamp());
     }
 }

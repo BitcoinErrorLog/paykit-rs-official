@@ -10,7 +10,7 @@ use pubky_common::{
 use crate::{
     Capabilities, cross_log,
     errors::{AuthError, Result},
-    util::check_http_status,
+    util::{check_http_status, commit_issued_http_write},
 };
 
 use super::PubkySigner;
@@ -69,7 +69,8 @@ impl PubkySigner {
             .send()
             .await?;
 
-        check_http_status(response).await?;
+        let response = check_http_status(response).await?;
+        commit_issued_http_write(response).await?;
         cross_log!(info, "Auth token delivered successfully");
         Ok(())
     }

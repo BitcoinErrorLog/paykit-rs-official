@@ -1,28 +1,35 @@
-# Vendored pubky 0.8.0
+# Vendored pubky 0.8.0 (homeserver migration)
 
-Source: crates.io `pubky` 0.8.0 (`25d85fdb77a0ee17213b1885f7d5c5d0536fa3ab11f93d395b4b5975c885467d`).
+Source: crates.io `pubky` 0.8.0.
 
-This tree is byte-identical to that crate except:
+This is not the BitcoinErrorLog `pubky-core` main tree (still 0.6.0-rc.6).
+paykit-wasm depends on the 0.8.0 API (`Keypair::from_secret`, reqwest 0.13,
+pkarr 6). The same first three fixes landed in the `pubky-core-migration`
+worktree on `fix/homeserver-migration`.
 
-1. `Cargo.toml` / `Cargo.toml.orig` disable doctests that need `pubky-testnet`. `Cargo.toml` also sets crates.io `clippy::pedantic` and `clippy::cargo` groups to `allow` so Paykit workspace `clippy -- -D warnings` still compiles this crate without treating upstream pedantic findings or sibling-package cargo metadata as errors.
-2. `src/client/core.rs` configures Android `icann_http` with the shared pkarr Android WebPKI helper (`pkarr::android_webpki_https::apply_mozilla_webpki_https`) instead of `rustls-platform-verifier`.
-3. `Cargo.lock` from the crates.io package is omitted. The published crate ships that lockfile; this vendor does not track it. The integrity allowlist entry `Cargo.lock` is that deletion only — the file is not rewritten or replaced.
+Patches relative to crates.io 0.8.0:
 
-## Why
-
-Paykit Android `ChatAuthFlow` polls the pubkyauth HTTP relay over ICANN HTTPS (`PubkyHttpClient::icann_http`). reqwest 0.13's default rustls backend uses `rustls-platform-verifier`, which on Android runs PKIX with revocation checking. Let's Encrypt YE1 leaves that omit an OCSP responder fail with `CertPathValidatorException: Certificate does not specify OCSP responder`, mapped to rustls `UnknownIssuer`. Relay polling then fails (`auth_flow_failed`) even though the chain is a valid public WebPKI chain.
-
-The Paykit-specific `rustls-platform-verifier-android` missing-CRL soft-fail does not cover the OCSP-responder-absent error.
-
-This follows pubky-homeserver PR 456 and the vendored pkarr 6.0.0 Android WebPKI helper: rustls with `webpki-roots`, no Android PKIX revocation hard-fail.
-
-## Security posture
-
-- Hostname, validity, signature, EKU/KU, and chain-to-Mozilla-root checks remain enabled.
-- **No revocation checking.** A revoked-but-unexpired certificate that still chains to a Mozilla root is accepted. This matches browser/`WebPKI`-root posture and pubky-homeserver PR 456.
-- Verification is not disabled, certificates are not pinned, and cleartext is not permitted.
-- Non-Android native builds keep `rustls-platform-verifier` for `icann_http`.
-- PubkyTLS raw-public-key (`http`, from pkarr `reqwest-builder`) is unchanged.
-- ALPN is `http/1.1` only because these reqwest clients are built without `http2`.
-
-`PaykitAndroid.initializeOrThrow` remains required for any remaining default-verifier clients. ChatAuthFlow ICANN HTTP and (via vendored pkarr) RelaysClient HTTPS do not consult that verifier.
+1. `publish_with_retries` re-resolves the latest signed packet after a pkarr
+   CAS/concurrency failure, restores the CAS baseline in the pkarr cache
+   (pkarr puts the new packet in cache before the remote PUT confirms),
+   sleeps on WASM via `setTimeout`, and on the last force attempt omits
+   If-Match so a stuck CAS cannot loop.
+2. `PubkySigner::migrate_homeserver` plus signup HTTP 409 → sign-in at that
+   host. Transport errors on `/signup` and `/session` retry with backoff.
+   The hydrated session pubky is checked against the signer. Host-local
+   data is not copied.
+3. WASM endpoint selection prefers ICANN/HTTP (`HTTP_PORT`) over Pubky TLS
+   for every host, not only `localhost`. That is required: browsers cannot
+   speak Pubky TLS. `HTTP_PORT` rewrites the scheme to `http` for any host
+   that advertises it.
+4. WASM homeserver writes (`SessionStorage::put` / `delete`, JSON PUT,
+   auth-relay POST/DELETE) consume the HTTP response body before returning
+   `Ok`. reqwest's wasm `AbortGuard` aborts `fetch` when `Response` is
+   dropped; discarding an unread 2xx write cancelled the request
+   (`net::ERR_ABORTED`, `canceled=true`) before the homeserver committed.
+   `Ok` now means the write completed. Remaining pkarr HTTPS SVCB records
+   after a BrowserHttp win are **dropped, not awaited**. Awaiting leftover
+   generator items resumes `resolve()` (fresh relay GETs) and races
+   reqwest's wasm AbortGuard on canceled sibling pkarr fetches, which
+   trapped as `RuntimeError: unreachable` during `publicGet`. Write-body
+   drain is unchanged; leftover await-drain was the GET/pkarr panic.

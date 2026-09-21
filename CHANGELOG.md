@@ -7,6 +7,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+- paykit-wasm `0.1.0-rc45`: `sb2Encrypt`, `sb2Sign`, and `computeInboxKid`
+  bindings over `pubky-crypto` SB2 so browser counterparties can produce
+  envelopes without a TypeScript cipher reimplementation.
+
 ## [0.1.0-rc43] - 2026-08-05
 
 ### Fixed

@@ -3,7 +3,10 @@ use reqwest::{Method, RequestBuilder, Response, StatusCode};
 use super::core::{PublicStorage, SessionStorage};
 use super::resource::{IntoPubkyResource, IntoResourcePath};
 use super::stats::ResourceStats;
-use crate::{Result, cross_log, util::check_http_status};
+use crate::{
+    Result, cross_log,
+    util::{check_http_status, commit_issued_http_write},
+};
 
 /// Interpret the result of a `HEAD` request into a shared outcome used by both
 /// session and public storage clients.
@@ -90,31 +93,38 @@ impl SessionStorage {
     /// HTTP `PUT` (write) for an **absolute path**.
     ///
     /// Requires a valid session; this handle is authenticated already.
+    /// `Ok(())` means the write completed; the response body is consumed so a
+    /// wasm `fetch` cannot be aborted by dropping an unread `Response`.
     ///
     /// # Errors
     /// - [`crate::errors::Error::Request`] on HTTP transport failures or when the server
     ///   responds with a non-success status (the server message is captured).
     /// - [`crate::errors::Error::Parse`] if `path` cannot be converted into a valid
     ///   resource/URL.
-    pub async fn put<P, B>(&self, path: P, body: B) -> Result<Response>
+    pub async fn put<P, B>(&self, path: P, body: B) -> Result<()>
     where
         P: IntoResourcePath,
         B: Into<reqwest::Body>,
     {
         let rb = self.request(Method::PUT, path).await?.body(body);
-        send_checked(rb).await
+        let resp = send_checked(rb).await?;
+        commit_issued_http_write(resp).await
     }
 
     /// HTTP `DELETE` for an **absolute path**.
+    ///
+    /// `Ok(())` means the delete completed; the response body is consumed so a
+    /// wasm `fetch` cannot be aborted by dropping an unread `Response`.
     ///
     /// # Errors
     /// - [`crate::errors::Error::Request`] on HTTP transport failures or when the server
     ///   responds with a non-success status (the server message is captured).
     /// - [`crate::errors::Error::Parse`] if `path` cannot be converted into a valid
     ///   resource/URL.
-    pub async fn delete<P: IntoResourcePath>(&self, path: P) -> Result<Response> {
+    pub async fn delete<P: IntoResourcePath>(&self, path: P) -> Result<()> {
         let rb = self.request(Method::DELETE, path).await?;
-        send_checked(rb).await
+        let resp = send_checked(rb).await?;
+        commit_issued_http_write(resp).await
     }
 }
 

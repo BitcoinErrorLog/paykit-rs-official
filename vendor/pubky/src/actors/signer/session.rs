@@ -4,7 +4,9 @@ use url::Url;
 
 use super::PubkySigner;
 use crate::{
-    Capabilities, Capability, PubkySession, PublicKey, Result, cross_log, util::check_http_status,
+    Capabilities, Capability, PubkySession, PublicKey, Result, StatusCode, cross_log,
+    errors::{AuthError, RequestError},
+    util::check_http_status,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -31,16 +33,40 @@ impl PubkySigner {
         homeserver: &PublicKey,
         signup_token: Option<&str>,
     ) -> Result<PubkySession> {
-        let url = Self::build_signup_url(homeserver, signup_token)?;
         cross_log!(info, "Signing up new account on homeserver {}", homeserver);
-
-        let auth_token = self.root_capability_token();
-        let response = self
-            .send_signup_request(url, auth_token.serialize())
-            .await?;
-
+        let response = self.signup_or_resume_on(homeserver, signup_token).await?;
         self.publish_signup_homeserver(homeserver).await?;
-        PubkySession::new_from_response(self.client.clone(), response).await
+        let session = PubkySession::new_from_response(self.client.clone(), response).await?;
+        self.ensure_session_matches_identity(&session)?;
+        Ok(session)
+    }
+
+    /// Move this identity to `homeserver` and republish `_pubky` to point at it.
+    ///
+    /// Obtains a session on that host — signup, or sign-in if the user already
+    /// exists there (HTTP 409 after a previous signup that created the user
+    /// before `_pubky` published). Then force-publishes the mailbox pointer.
+    ///
+    /// **Does not copy data** from any previous homeserver. Files, sessions,
+    /// Encrypted Link outboxes, and other host-local state stay on the old
+    /// host. The caller must re-publish anything they need after the move.
+    ///
+    /// # Errors
+    /// - Returns [`crate::errors::Error::Parse`] if the homeserver URL cannot be constructed.
+    /// - Propagates transport failures while creating or resuming the session.
+    /// - Propagates PKARR failures while publishing the new `_pubky` record.
+    pub async fn migrate_homeserver(
+        &self,
+        homeserver: &PublicKey,
+        signup_token: Option<&str>,
+    ) -> Result<PubkySession> {
+        cross_log!(
+            info,
+            "Migrating {} to homeserver {} (host-local data is not copied)",
+            self.keypair.public_key(),
+            homeserver
+        );
+        self.signup(homeserver, signup_token).await
     }
 
     // All of these methods use root capabilities
@@ -133,17 +159,97 @@ impl PubkySigner {
         AuthToken::sign(&self.keypair, capabilities)
     }
 
-    async fn send_signup_request(&self, url: Url, body: Vec<u8>) -> Result<reqwest::Response> {
-        let response = self
-            .client
-            .cross_request(Method::POST, url)
-            .await?
-            .body(body)
-            .send()
-            .await?;
+    async fn signup_or_resume_on(
+        &self,
+        homeserver: &PublicKey,
+        signup_token: Option<&str>,
+    ) -> Result<reqwest::Response> {
+        let url = Self::build_signup_url(homeserver, signup_token)?;
+        match self
+            .send_signup_request(url, self.root_capability_token().serialize())
+            .await
+        {
+            Ok(response) => Ok(response),
+            Err(err) if Self::is_user_already_exists(&err) => {
+                cross_log!(
+                    info,
+                    "User {} already exists on {}; signing in at that host",
+                    self.keypair.public_key(),
+                    homeserver
+                );
+                self.send_session_request(homeserver).await
+            }
+            Err(err) => Err(err),
+        }
+    }
 
-        // Map non-2xx into our error type; keep body/headers intact for the caller.
-        check_http_status(response).await
+    async fn send_signup_request(&self, url: Url, body: Vec<u8>) -> Result<reqwest::Response> {
+        self.send_homeserver_http(Method::POST, url, body).await
+    }
+
+    /// Sign in against a specific homeserver, not the `_pubky` mailbox.
+    async fn send_session_request(&self, homeserver: &PublicKey) -> Result<reqwest::Response> {
+        let mut url = Url::parse(&format!("https://{}", homeserver.z32()))?;
+        url.set_path("/session");
+        self.send_homeserver_http(Method::POST, url, self.root_capability_token().serialize())
+            .await
+    }
+
+    async fn send_homeserver_http(
+        &self,
+        method: Method,
+        url: Url,
+        body: Vec<u8>,
+    ) -> Result<reqwest::Response> {
+        const ATTEMPTS: u32 = 3;
+        let mut last_err = None;
+        for attempt in 1..=ATTEMPTS {
+            match self.client.cross_request(method.clone(), url.clone()).await {
+                Ok(builder) => match builder.body(body.clone()).send().await {
+                    Ok(response) => return check_http_status(response).await,
+                    Err(err) => {
+                        let err = crate::Error::from(err);
+                        if Self::is_retryable_homeserver_transport(&err) && attempt < ATTEMPTS {
+                            crate::actors::pkdns::bounded_publish_backoff(attempt).await;
+                            last_err = Some(err);
+                            continue;
+                        }
+                        return Err(err);
+                    }
+                },
+                Err(err) => {
+                    if Self::is_retryable_homeserver_transport(&err) && attempt < ATTEMPTS {
+                        crate::actors::pkdns::bounded_publish_backoff(attempt).await;
+                        last_err = Some(err);
+                        continue;
+                    }
+                    return Err(err);
+                }
+            }
+        }
+        Err(last_err.expect("homeserver HTTP retry stores the last transport error"))
+    }
+
+    fn is_retryable_homeserver_transport(err: &crate::Error) -> bool {
+        matches!(err, crate::Error::Request(RequestError::Transport(_)))
+    }
+
+    fn ensure_session_matches_identity(&self, session: &PubkySession) -> Result<()> {
+        if session.info().public_key() != &self.keypair.public_key() {
+            return Err(AuthError::Validation(
+                "session public key does not match the signing identity".into(),
+            )
+            .into());
+        }
+        Ok(())
+    }
+
+    fn is_user_already_exists(err: &crate::Error) -> bool {
+        matches!(
+            err,
+            crate::Error::Request(RequestError::Server { status, .. })
+                if *status == StatusCode::CONFLICT
+        )
     }
 
     async fn publish_signup_homeserver(&self, homeserver: &PublicKey) -> Result<()> {

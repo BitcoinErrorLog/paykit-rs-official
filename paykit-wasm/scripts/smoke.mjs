@@ -34,8 +34,24 @@ import init, {
   publishReceiverMarker,
   getReceiverMarker,
   removeReceiverMarker,
+  setPaymentEndpoint,
+  removePaymentEndpoint,
+  getPaymentEndpoint,
+  getPaymentList,
+  listPaymentMethods,
+  listPaykitReceiverPaths,
+  parsePrivatePaymentListJson,
+  serializePrivatePaymentListJson,
   maxNoiseMessageLen,
   noiseTagLen,
+  x25519GenerateKeypair,
+  computeInboxKid,
+  sb2Encrypt,
+  sb2Sign,
+  sb2VerifySignature,
+  sb2Decrypt,
+  publicGet,
+  signOutSession,
 } from "../pkg/paykit_wasm.js";
 
 const wasmPath = fileURLToPath(
@@ -66,8 +82,24 @@ ok("messaging API surface exported", () => {
     publishReceiverMarker,
     getReceiverMarker,
     removeReceiverMarker,
+    setPaymentEndpoint,
+    removePaymentEndpoint,
+    getPaymentEndpoint,
+    getPaymentList,
+    listPaymentMethods,
+    listPaykitReceiverPaths,
+    parsePrivatePaymentListJson,
+    serializePrivatePaymentListJson,
     maxNoiseMessageLen,
     noiseTagLen,
+    x25519GenerateKeypair,
+    computeInboxKid,
+    sb2Encrypt,
+    sb2Sign,
+    sb2VerifySignature,
+    sb2Decrypt,
+    publicGet,
+    signOutSession,
   ]) {
     assert.equal(typeof fn, "function");
   }
@@ -82,6 +114,7 @@ ok("messaging API surface exported", () => {
     assert.equal(typeof cls, "function");
   }
   assert.equal(typeof EncryptedLinkHandle.prototype.sendPrivateApplicationMessageJson, "function");
+  assert.equal(typeof EncryptedLinkHandle.prototype.sendPrivatePaymentList, "function");
   assert.equal(typeof EncryptedLinkHandle.prototype.receivePrivateApplicationMessages, "function");
   assert.equal(typeof EncryptedLinkHandle.prototype.snapshot, "function");
   assert.equal(typeof LinkHandshakeHandle.prototype.advance, "function");
@@ -89,6 +122,8 @@ ok("messaging API surface exported", () => {
   assert.equal(typeof PubkyClient.prototype.restoreSession, "function");
   assert.equal(typeof PubkyClient.prototype.resumeSessionFromCookie, "function");
   assert.equal(typeof SessionHandle.prototype.exportSession, "function");
+  assert.equal(typeof SessionHandle.prototype.putPublic, "function");
+  assert.equal(typeof SessionHandle.prototype.deletePublic, "function");
 });
 
 // 3. Constants match the pubky-noise wire contract.
@@ -109,6 +144,54 @@ ok("receiver noise key generation", () => {
   assert.equal(pub1, pub2);
   assert.match(pub1, /^[a-z0-9]{52}$/);
   assert.notEqual(pub1, noisePublicKeyFromSecret(bobNoiseSecret));
+});
+
+ok("x25519GenerateKeypair is hex and distinct from generateNoiseSecretKey", () => {
+  const pair = x25519GenerateKeypair();
+  assert.match(pair.publicKey, /^[0-9a-f]{64}$/);
+  assert.match(pair.secretKey, /^[0-9a-f]{64}$/);
+  assert.notEqual(pair.publicKey, pair.secretKey);
+  const other = x25519GenerateKeypair();
+  assert.notEqual(pair.secretKey, other.secretKey);
+  const noiseHex = Buffer.from(aliceNoiseSecret).toString("hex");
+  assert.notEqual(pair.secretKey, noiseHex);
+});
+
+ok("sb2Encrypt/sb2Sign round-trip through sb2Decrypt/sb2VerifySignature", () => {
+  const hexToBytes = (hex) => {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) {
+      out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return out;
+  };
+  const pair = x25519GenerateKeypair();
+  const recipientPk = hexToBytes(pair.publicKey);
+  const recipientSk = hexToBytes(pair.secretKey);
+  const ownerSecret = generateNoiseSecretKey();
+  const ownerPubky = noisePublicKeyFromSecret(ownerSecret);
+  const path = "/pub/paykit.app/v0/handoff/smoke";
+  const plaintext = new TextEncoder().encode("smoke-sb2");
+  const kid = computeInboxKid(pair.publicKey);
+  assert.match(kid, /^[0-9a-f]{32}$/);
+  const unsigned = sb2Encrypt(
+    recipientPk,
+    plaintext,
+    generateNoiseSecretKey(),
+    "smoke_001",
+    "request",
+    ownerPubky,
+    ownerPubky,
+    ownerPubky,
+    path,
+    1704067200n,
+    1704153600n,
+  );
+  assert.equal(sb2VerifySignature(unsigned, ownerPubky, path), false);
+  assert.deepEqual([...sb2Decrypt(unsigned, recipientSk, ownerPubky, path)], [...plaintext]);
+  const signed = sb2Sign(unsigned, ownerSecret, ownerPubky, path);
+  assert.equal(sb2VerifySignature(signed, ownerPubky, path), true);
+  assert.deepEqual([...sb2Decrypt(signed, recipientSk, ownerPubky, path)], [...plaintext]);
 });
 
 // Identity pubkeys for endpoint labelling (z-base-32 Ed25519 keys). These
@@ -229,6 +312,60 @@ ok("PubkyClient constructs and auth flow yields a pubkyauth URL", () => {
     assert.ok(rejected !== null && /invalid pubky public key/.test(rejected), `got: ${rejected}`);
   });
 }
+
+ok("private payment list serialize/parse round-trips and rejects reserved ids", () => {
+  const json = serializePrivatePaymentListJson({
+    lightning: "ln...",
+    onchain: "bc1qexample",
+  });
+  const parsed = parsePrivatePaymentListJson(json);
+  assert.equal(parsed.lightning, "ln...");
+  assert.equal(parsed.onchain, "bc1qexample");
+  const wire = JSON.parse(json);
+  assert.equal(wire.version, 1);
+  assert.equal(wire.kind, "paykit.private_payment_list");
+  assert.throws(
+    () => parsePrivatePaymentListJson('{"lightning":"ln..."}'),
+    /failed to parse Private Payment List/,
+  );
+  assert.throws(
+    () => serializePrivatePaymentListJson({ private: "secret" }),
+    /invalid payment endpoint identifier/,
+  );
+});
+
+ok("private payment list keeps __proto__ as an own data property", () => {
+  // An object literal `{ __proto__: ... }` mutates the prototype; define an
+  // own data property so serialize sees the identifier as a real key.
+  const input = {};
+  Object.defineProperty(input, "__proto__", {
+    value: "ln-proto",
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+  input.lightning = "ln...";
+  const json = serializePrivatePaymentListJson(input);
+  const parsed = parsePrivatePaymentListJson(json);
+  const proto = Object.getOwnPropertyDescriptor(parsed, "__proto__");
+  assert.ok(proto && !proto.get && !proto.set, "expected an own data property");
+  assert.equal(proto.value, "ln-proto");
+  assert.equal(parsed.lightning, "ln...");
+  assert.ok(Object.prototype.hasOwnProperty.call(parsed, "__proto__"));
+});
+
+ok("getPaymentEndpoint rejects an invalid identifier before any I/O", () => {
+  const client = new PubkyClient();
+  const knownZ32 = "8pinxxgqs41n4aididenw5apqp1urfmzdztr8jt4abrkdn435ewo";
+  assert.throws(
+    () => getPaymentEndpoint(client, knownZ32, "bitkit/wallet", ".."),
+    /invalid payment endpoint identifier/,
+  );
+  assert.throws(
+    () => getPaymentList(client, knownZ32, "not-a-receiver"),
+    /invalid payment receiver path/,
+  );
+});
 
 alice.close();
 bob.close();

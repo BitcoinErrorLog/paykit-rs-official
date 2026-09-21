@@ -168,6 +168,26 @@ export class EncryptedLinkHandle {
         return ret;
     }
     /**
+     * Encrypt and send a complete Private Payment List over this link.
+     *
+     * `endpoints` is a plain object `{ identifier: payload }` — the full
+     * desired list, not a patch. Binds paykit-lib
+     * `set_private_payment_list`. There is no homeserver GET for private
+     * endpoints; the counterparty reads them via
+     * `receivePrivateApplicationMessages` + `parsePrivatePaymentListJson`.
+     * Do not log payloads. Session and link lifetime remain the caller's
+     * responsibility.
+     * @param {object} endpoints
+     * @returns {Promise<any>}
+     */
+    sendPrivatePaymentList(endpoints) {
+        const ret = wasm.encryptedlinkhandle_sendPrivatePaymentList(this.__wbg_ptr, endpoints);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Override the automatic send retry limit for transient homeserver
      * write failures.
      * @param {number} max
@@ -546,6 +566,29 @@ export class PubkyClient {
         wasm.__wbg_pubkyclient_free(ptr, 0);
     }
     /**
+     * Move an existing identity to `homeserverZ32` and republish `_pubky`.
+     *
+     * Dev/test helper. Signs up on that host, or signs in there if the user
+     * already exists (HTTP 409). Host-local data is not copied.
+     * @param {Uint8Array} identity_secret_key
+     * @param {string} homeserver_z32
+     * @param {string | null} [signup_token]
+     * @returns {Promise<any>}
+     */
+    migrateHomeserverWithSecret(identity_secret_key, homeserver_z32, signup_token) {
+        const ptr0 = passArray8ToWasm0(identity_secret_key, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(homeserver_z32, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(signup_token) ? 0 : passStringToWasm0(signup_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        const ret = wasm.pubkyclient_migrateHomeserverWithSecret(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * Construct with mainnet defaults.
      */
     constructor() {
@@ -556,6 +599,23 @@ export class PubkyClient {
         this.__wbg_ptr = ret[0] >>> 0;
         PubkyClientFinalization.register(this, this.__wbg_ptr, this);
         return this;
+    }
+    /**
+     * Force a fresh `_pubky` lookup for `pubkyZ32` from relays/DHT.
+     *
+     * Call after a counterparty migrates homeserver so subsequent requests
+     * do not keep using a cached mailbox pointer.
+     * @param {string} pubky_z32
+     * @returns {Promise<any>}
+     */
+    resolveMostRecentHomeserver(pubky_z32) {
+        const ptr0 = passStringToWasm0(pubky_z32, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.pubkyclient_resolveMostRecentHomeserver(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
     }
     /**
      * Restore a homeserver session from metadata previously produced by
@@ -710,6 +770,18 @@ export class SessionHandle {
         wasm.__wbg_sessionhandle_free(ptr, 0);
     }
     /**
+     * Authenticated DELETE of an absolute homeserver path. Cookie-authorized
+     * the same way as `putPublic`.
+     * @param {string} path
+     * @returns {Promise<any>}
+     */
+    deletePublic(path) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.sessionhandle_deletePublic(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
      * Export session metadata for rehydrating via
      * `PubkyClient.restoreSession()` after a page reload.
      *
@@ -747,6 +819,23 @@ export class SessionHandle {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * Authenticated PUT of `body` at an absolute homeserver path (e.g.
+     * `/pub/hypercolor.app/v1/…`). The browser attaches the HTTP-only
+     * session cookie; this is not a Cookie-header constructor and must
+     * never be fed `exportSession()` as a bearer.
+     * @param {string} path
+     * @param {Uint8Array} body
+     * @returns {Promise<any>}
+     */
+    putPublic(path, body) {
+        const ptr0 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(body, wasm.__wbindgen_malloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.sessionhandle_putPublic(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
     }
 }
 if (Symbol.dispose) SessionHandle.prototype[Symbol.dispose] = SessionHandle.prototype.free;
@@ -815,6 +904,38 @@ export function clearEncryptedLinkOutbox(session, local_noise_secret_key, remote
 }
 
 /**
+ * Compute `inbox_kid` for a recipient InboxKey X25519 public key.
+ *
+ * `inbox_kid = first_16_bytes(SHA256(x25519_pub))`, returned as lowercase
+ * 32-character hex. `x25519PubHex` is a 64-character hex public key (the
+ * form returned by `x25519GenerateKeypair`).
+ *
+ * Binds `pubky_crypto::sealed_blob_v2::Sb2Header::compute_inbox_kid`.
+ * @param {string} x25519_pub_hex
+ * @returns {string}
+ */
+export function computeInboxKid(x25519_pub_hex) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(x25519_pub_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.computeInboxKid(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Generate a random receiver-scoped Noise secret key (32 bytes).
  *
  * Mirrors `paykit_sdk::ReceiverNoiseSecretKey::random()`: the key is an
@@ -828,6 +949,56 @@ export function generateNoiseSecretKey() {
     var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v1;
+}
+
+/**
+ * Fetch one public Payment Endpoint for `payee` at `receiverPath`.
+ *
+ * Resolves to the payload string, or `undefined` when the endpoint file is
+ * missing or empty (homeserver 404/410). Other transport failures reject.
+ * Session creation is not required; this is an unauthenticated public read.
+ * @param {PubkyClient} client
+ * @param {string} payee_pubky
+ * @param {string} receiver_path_value
+ * @param {string} identifier
+ * @returns {Promise<any>}
+ */
+export function getPaymentEndpoint(client, payee_pubky, receiver_path_value, identifier) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(payee_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(identifier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.getPaymentEndpoint(client.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Fetch a peer's public Payment List (identifier → payload).
+ *
+ * Resolves to a plain object. A missing directory or empty list is `{}`
+ * (list ops treat 404 as empty). Invalid UTF-8 or unparseable paths reject.
+ * @param {PubkyClient} client
+ * @param {string} payee_pubky
+ * @param {string} receiver_path_value
+ * @returns {Promise<any>}
+ */
+export function getPaymentList(client, payee_pubky, receiver_path_value) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(payee_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.getPaymentList(client.__wbg_ptr, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**
@@ -890,6 +1061,50 @@ export function initiateEncryptedLink(session, sender_noise_secret_key, receiver
 }
 
 /**
+ * List publicly advertised Paykit receiver paths for a Pubky identity.
+ *
+ * Discovery helper only — payment flows should still use the exact
+ * receiver path selected by the app. Resolves to a sorted string array;
+ * a missing tree is `[]`.
+ * @param {PubkyClient} client
+ * @param {string} owner_pubky
+ * @returns {Promise<any>}
+ */
+export function listPaykitReceiverPaths(client, owner_pubky) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.listPaykitReceiverPaths(client.__wbg_ptr, ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * List the Payment Endpoint Identifiers a peer has published publicly.
+ *
+ * Same fetch as `getPaymentList`; resolves to a sorted string array.
+ * A missing directory is `[]`.
+ * @param {PubkyClient} client
+ * @param {string} payee_pubky
+ * @param {string} receiver_path_value
+ * @returns {Promise<any>}
+ */
+export function listPaymentMethods(client, payee_pubky, receiver_path_value) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(payee_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.listPaymentMethods(client.__wbg_ptr, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Maximum plaintext size of one Private Application Message, in bytes.
  *
  * This is `pubky_noise`'s fixed message buffer (1000 bytes). JSON envelope
@@ -940,6 +1155,49 @@ export function noiseTagLen() {
 }
 
 /**
+ * Parse a versioned `paykit.private_payment_list` JSON message.
+ *
+ * Returns `{ identifier: payload, ... }`. There is no homeserver GET for
+ * private endpoints — they arrive as Encrypted Link messages. Rejects
+ * invalid identifiers, unknown versions/kinds, or malformed JSON.
+ * @param {string} json
+ * @returns {object}
+ */
+export function parsePrivatePaymentListJson(json) {
+    const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.parsePrivatePaymentListJson(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Unauthenticated public GET of `{ownerPubky}{path}`.
+ *
+ * `ownerPubky` accepts z-base-32 or 64-hex. A homeserver 404 or 410
+ * resolves to `undefined`; other failures reject. Used to fetch a
+ * paykit-connect SB2 handoff from `/pub/`.
+ * @param {PubkyClient} client
+ * @param {string} owner_pubky
+ * @param {string} path
+ * @returns {Promise<any>}
+ */
+export function publicGet(client, owner_pubky, path) {
+    _assertClass(client, PubkyClient);
+    const ptr0 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.publicGet(client.__wbg_ptr, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Publish a public Paykit Receiver Marker for the session owner, making the
  * receiver path discoverable and advertising the receiver Noise public key
  * used for Encrypted Link path derivation.
@@ -962,6 +1220,30 @@ export function publishReceiverMarker(session, receiver_path_value, noise_public
     const ptr1 = passStringToWasm0(noise_public_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ret = wasm.publishReceiverMarker(session.__wbg_ptr, ptr0, len0, ptr1, len1, private_payments, payment_requests, receipts, outgoing_payments);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Remove a public Payment Endpoint owned by the session.
+ *
+ * A missing endpoint is success (paykit-lib treats homeserver 404 as
+ * already absent). Session creation and capability scope remain the
+ * caller's responsibility.
+ * @param {SessionHandle} session
+ * @param {string} receiver_path_value
+ * @param {string} identifier
+ * @returns {Promise<any>}
+ */
+export function removePaymentEndpoint(session, receiver_path_value, identifier) {
+    _assertClass(session, SessionHandle);
+    const ptr0 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(identifier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.removePaymentEndpoint(session.__wbg_ptr, ptr0, len0, ptr1, len1);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -1049,6 +1331,227 @@ export function restoreEncryptedLinkHandshake(session, noise_secret_key, remote_
     return takeFromExternrefTable0(ret[0]);
 }
 
+/**
+ * Decrypt an SB2 envelope for the recipient X25519 secret key.
+ *
+ * Binds `Sb2::decode` + `Sb2::decrypt`. `ownerPubky` accepts z-base-32 or
+ * 64-hex. `canonicalPath` must match the path bound into the AAD at encrypt.
+ * @param {Uint8Array} envelope
+ * @param {Uint8Array} recipient_sk
+ * @param {string} owner_pubky
+ * @param {string} canonical_path
+ * @returns {Uint8Array}
+ */
+export function sb2Decrypt(envelope, recipient_sk, owner_pubky, canonical_path) {
+    const ptr0 = passArray8ToWasm0(envelope, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(recipient_sk, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2Decrypt(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v5 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v5;
+}
+
+/**
+ * Encrypt plaintext to an unsigned SB2 binary envelope.
+ *
+ * Binds `Sb2::encrypt_with_cert_id` + `Sb2::encode`. Does not reimplement
+ * the cipher. Plaintext is capped at 64 KiB and `msg_id` at 128 ASCII
+ * characters by the encoder. `ownerPubky`, `senderPeerid`, and
+ * `recipientPeerid` accept z-base-32 or 64-hex.
+ *
+ * Call `sb2Sign` afterwards when the envelope must authenticate the sender.
+ * @param {Uint8Array} recipient_inbox_pk
+ * @param {Uint8Array} plaintext
+ * @param {Uint8Array} context_id
+ * @param {string | null | undefined} msg_id
+ * @param {string | null | undefined} purpose
+ * @param {string} owner_pubky
+ * @param {string} sender_peerid
+ * @param {string} recipient_peerid
+ * @param {string} canonical_path
+ * @param {bigint | null} [created_at]
+ * @param {bigint | null} [expires_at]
+ * @param {Uint8Array | null} [cert_id]
+ * @returns {Uint8Array}
+ */
+export function sb2Encrypt(recipient_inbox_pk, plaintext, context_id, msg_id, purpose, owner_pubky, sender_peerid, recipient_peerid, canonical_path, created_at, expires_at, cert_id) {
+    const ptr0 = passArray8ToWasm0(recipient_inbox_pk, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(plaintext, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray8ToWasm0(context_id, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    var ptr3 = isLikeNone(msg_id) ? 0 : passStringToWasm0(msg_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len3 = WASM_VECTOR_LEN;
+    var ptr4 = isLikeNone(purpose) ? 0 : passStringToWasm0(purpose, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len4 = WASM_VECTOR_LEN;
+    const ptr5 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len5 = WASM_VECTOR_LEN;
+    const ptr6 = passStringToWasm0(sender_peerid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len6 = WASM_VECTOR_LEN;
+    const ptr7 = passStringToWasm0(recipient_peerid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len7 = WASM_VECTOR_LEN;
+    const ptr8 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len8 = WASM_VECTOR_LEN;
+    var ptr9 = isLikeNone(cert_id) ? 0 : passArray8ToWasm0(cert_id, wasm.__wbindgen_malloc);
+    var len9 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2Encrypt(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, ptr8, len8, !isLikeNone(created_at), isLikeNone(created_at) ? BigInt(0) : created_at, !isLikeNone(expires_at), isLikeNone(expires_at) ? BigInt(0) : expires_at, ptr9, len9);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v11 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v11;
+}
+
+/**
+ * Sign an SB2 envelope with the sender's Ed25519 secret key.
+ *
+ * Binds `Sb2::decode` + `Sb2::sign` + `Sb2::encode`. `ownerPubky` accepts
+ * z-base-32 or 64-hex and must match the path bound into the AAD at encrypt.
+ * @param {Uint8Array} envelope
+ * @param {Uint8Array} sender_ed25519_sk
+ * @param {string} owner_pubky
+ * @param {string} canonical_path
+ * @returns {Uint8Array}
+ */
+export function sb2Sign(envelope, sender_ed25519_sk, owner_pubky, canonical_path) {
+    const ptr0 = passArray8ToWasm0(envelope, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(sender_ed25519_sk, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2Sign(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v5 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v5;
+}
+
+/**
+ * Verify the Ed25519 signature on an SB2 envelope.
+ *
+ * Returns `true` when a signature is present and valid, `false` when no
+ * signature is present. Rejects when a signature is present but invalid
+ * (mirrors `pubky_noise` UniFFI `sb2_verify_signature`).
+ *
+ * `ownerPubky` accepts z-base-32 or 64-hex and is normalized to 32 bytes.
+ * @param {Uint8Array} envelope
+ * @param {string} owner_pubky
+ * @param {string} canonical_path
+ * @returns {boolean}
+ */
+export function sb2VerifySignature(envelope, owner_pubky, canonical_path) {
+    const ptr0 = passArray8ToWasm0(envelope, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(owner_pubky, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(canonical_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.sb2VerifySignature(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] !== 0;
+}
+
+/**
+ * Serialize a complete Private Payment List to its versioned JSON wire form.
+ *
+ * `endpoints` is a plain object `{ identifier: payload }`. The result is
+ * the full latest-state message (`version` 1, kind
+ * `paykit.private_payment_list`), not a patch. Do not log payloads.
+ * @param {object} endpoints
+ * @returns {string}
+ */
+export function serializePrivatePaymentListJson(endpoints) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ret = wasm.serializePrivatePaymentListJson(endpoints);
+        var ptr1 = ret[0];
+        var len1 = ret[1];
+        if (ret[3]) {
+            ptr1 = 0; len1 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred2_0 = ptr1;
+        deferred2_1 = len1;
+        return getStringFromWasm0(ptr1, len1);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
+ * Publish or update a public Payment Endpoint for the session owner.
+ *
+ * Authenticated PUT via the session. Path construction stays inside
+ * paykit-lib (`PAYKIT_PATH_PREFIX`). Session creation, capability scope
+ * (`/pub/paykit/:rw`), and key rotation remain the caller's
+ * responsibility. Do not log `payload`.
+ * @param {SessionHandle} session
+ * @param {string} receiver_path_value
+ * @param {string} identifier
+ * @param {string} payload
+ * @returns {Promise<any>}
+ */
+export function setPaymentEndpoint(session, receiver_path_value, identifier, payload) {
+    _assertClass(session, SessionHandle);
+    const ptr0 = passStringToWasm0(receiver_path_value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(identifier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(payload, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.setPaymentEndpoint(session.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Sign out and invalidate the homeserver session (cookie) server-side.
+ * Consumes the `SessionHandle`.
+ * @param {SessionHandle} session
+ * @returns {Promise<any>}
+ */
+export function signOutSession(session) {
+    _assertClass(session, SessionHandle);
+    var ptr0 = session.__destroy_into_raw();
+    const ret = wasm.signOutSession(ptr0);
+    return ret;
+}
+
+/**
+ * Generate a random X25519 keypair.
+ *
+ * Returns `{ publicKey, secretKey }` as lowercase 64-character hex strings.
+ * This is **not** `generateNoiseSecretKey` (that is an Ed25519 seed).
+ *
+ * Binds `pubky_crypto::sealed_blob::x25519_generate_keypair`.
+ * @returns {object}
+ */
+export function x25519GenerateKeypair() {
+    const ret = wasm.x25519GenerateKeypair();
+    return ret;
+}
+
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -1075,6 +1578,12 @@ function __wbg_get_imports() {
         __wbg___wbindgen_is_undefined_87a3a837f331fef5: function(arg0) {
             const ret = arg0 === undefined;
             return ret;
+        },
+        __wbg___wbindgen_number_get_769f3676dc20c1d7: function(arg0, arg1) {
+            const obj = arg1;
+            const ret = typeof(obj) === 'number' ? obj : undefined;
+            getDataViewMemory0().setFloat64(arg0 + 8 * 1, isLikeNone(ret) ? 0 : ret, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, !isLikeNone(ret), true);
         },
         __wbg___wbindgen_string_get_f1161390414f9b59: function(arg0, arg1) {
             const obj = arg1;
@@ -1119,6 +1628,14 @@ function __wbg_get_imports() {
             const ret = arg0.byteOffset;
             return ret;
         },
+        __wbg_call_4f2f92601568b772: function() { return handleError(function (arg0, arg1, arg2, arg3) {
+            const ret = arg0.call(arg1, arg2, arg3);
+            return ret;
+        }, arguments); },
+        __wbg_call_6ae20895a60069a2: function() { return handleError(function (arg0, arg1) {
+            const ret = arg0.call(arg1);
+            return ret;
+        }, arguments); },
         __wbg_call_8f5d7bb070283508: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.call(arg1, arg2);
             return ret;
@@ -1137,6 +1654,10 @@ function __wbg_get_imports() {
             const ret = arg0.crypto;
             return ret;
         },
+        __wbg_defineProperty_0096265c3e5479b6: function() { return handleError(function (arg0, arg1, arg2) {
+            const ret = Reflect.defineProperty(arg0, arg1, arg2);
+            return ret;
+        }, arguments); },
         __wbg_done_19f92cb1f8738aba: function(arg0) {
             const ret = arg0.done;
             return ret;
@@ -1173,6 +1694,10 @@ function __wbg_get_imports() {
             const ret = arg0[arg1 >>> 0];
             return ret;
         },
+        __wbg_get_ff5f1fb220233477: function() { return handleError(function (arg0, arg1) {
+            const ret = Reflect.get(arg0, arg1);
+            return ret;
+        }, arguments); },
         __wbg_has_3f87d148146a0f4e: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.has(arg0, arg1);
             return ret;
@@ -1195,7 +1720,15 @@ function __wbg_get_imports() {
             const ret = Array.isArray(arg0);
             return ret;
         },
+        __wbg_keys_e84d806594765111: function(arg0) {
+            const ret = Object.keys(arg0);
+            return ret;
+        },
         __wbg_length_e6e1633fbea6cfa9: function(arg0) {
+            const ret = arg0.length;
+            return ret;
+        },
+        __wbg_length_fae3e439140f48a4: function(arg0) {
             const ret = arg0.length;
             return ret;
         },
@@ -1226,6 +1759,24 @@ function __wbg_get_imports() {
         __wbg_new_4a843fe2ee4082a9: function(arg0, arg1) {
             const ret = new Error(getStringFromWasm0(arg0, arg1));
             return ret;
+        },
+        __wbg_new_694161c660bbefba: function(arg0, arg1) {
+            try {
+                var state0 = {a: arg0, b: arg1};
+                var cb0 = (arg0, arg1) => {
+                    const a = state0.a;
+                    state0.a = 0;
+                    try {
+                        return wasm_bindgen__convert__closures_____invoke__h31c10299f3023db4(a, state0.b, arg0, arg1);
+                    } finally {
+                        state0.a = a;
+                    }
+                };
+                const ret = new Promise(cb0);
+                return ret;
+            } finally {
+                state0.a = 0;
+            }
         },
         __wbg_new_ce17f0bcfcc7b8ef: function() { return handleError(function () {
             const ret = new AbortController();
@@ -1416,12 +1967,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1161, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1279, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 998, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1105, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1);
             return ret;
         },

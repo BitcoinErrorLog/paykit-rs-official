@@ -217,17 +217,7 @@ impl PubkyHttpClientBuilder {
         let http_builder = reqwest::Client::builder().user_agent(user_agent.as_ref());
 
         #[cfg(not(target_arch = "wasm32"))]
-        let mut icann_http_builder = {
-            let builder = reqwest::Client::builder().user_agent(user_agent.as_ref());
-            #[cfg(target_os = "android")]
-            {
-                pkarr::android_webpki_https::apply_mozilla_webpki_https(builder)
-            }
-            #[cfg(not(target_os = "android"))]
-            {
-                builder
-            }
-        };
+        let mut icann_http_builder = reqwest::Client::builder().user_agent(user_agent.as_ref());
 
         // TODO: change this after Reqwest publish a release with timeout in wasm
         #[cfg(not(target_arch = "wasm32"))]
@@ -281,11 +271,6 @@ impl PubkyHttpClientBuilder {
 /// ### Platform notes
 /// - **Native (rust, not WASM target):**
 ///   - ICANN domains use standard X.509 TLS via the `icann_http` client.
-///     On Android that client uses rustls with Mozilla/webpki roots (hostname,
-///     validity, signature, EKU/KU, and chain checks; no revocation / no
-///     Android PKIX OCSP-presence hard-fail). Other native platforms keep
-///     rustls-platform-verifier. Pkarr relay HTTPS on Android uses the same
-///     helper (`pkarr::android_webpki_https`).
 ///   - Pubky/PKDNS hosts (public-key hostnames or `_pubky.<pk>` domains) use **`PubkyTLS`**
 ///     (TLS with RFC 7250 Raw Public Keys), verifying the connection against the
 ///     target public key—no CA chain involved.
@@ -459,63 +444,5 @@ mod test {
 
         assert_eq!(response.status(), StatusCode::OK);
         mock.assert();
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn android_icann_http_uses_shared_pkarr_webpki_helper() {
-        let src = include_str!("core.rs");
-        assert!(
-            src.contains("pkarr::android_webpki_https::apply_mozilla_webpki_https"),
-            "Android icann_http must install the shared pkarr WebPKI helper"
-        );
-        assert!(
-            src.contains("target_os = \"android\""),
-            "webpki reqwest wiring must stay Android-only"
-        );
-        pkarr::android_webpki_https::apply_mozilla_webpki_https(reqwest::Client::builder())
-            .build()
-            .expect(
-                "reqwest must accept pkarr mozilla_webpki rustls config; rustls version drift \
-                 becomes TlsBackend::UnknownPreconfigured",
-            );
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn pubky_http_client_builds_with_secure_defaults() {
-        let client = PubkyHttpClient::new()
-            .expect("PubkyHttpClient must construct with the ICANN TLS config");
-        let _ = client.pkarr();
-        pkarr::Client::builder()
-            .build()
-            .expect("pkarr client (RelaysClient HTTPS path) must construct");
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    #[tokio::test]
-    async fn start_auth_flow_uses_shared_client_with_webpki_https() {
-        use crate::Pubky;
-        use pubky_common::capabilities::Capabilities;
-
-        let pubky = Pubky::new().expect("default Pubky uses PubkyHttpClient::new");
-        let flow = pubky
-            .start_auth_flow(&Capabilities::default(), crate::AuthFlowKind::signin())
-            .expect("start_auth_flow must use the shared PubkyHttpClient");
-        let _ = flow.authorization_url();
-
-        let pubky_src = include_str!("../pubky.rs");
-        assert!(
-            pubky_src.contains(".client(self.client.clone())"),
-            "start_auth_flow must clone the shared PubkyHttpClient"
-        );
-        let relays = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../pkarr/src/client/relays.rs"
-        ));
-        assert!(
-            relays.contains("android_webpki_https::relays_http_client"),
-            "pkarr RelaysClient must use the shared Android WebPKI HTTP client"
-        );
     }
 }

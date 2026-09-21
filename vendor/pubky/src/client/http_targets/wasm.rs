@@ -1,5 +1,8 @@
 //! HTTP methods that support `https://` with Pkarr domains, including `_pubky.<pk>` URLs
 
+use std::ops::ControlFlow;
+
+use super::browser::{consider_browser_endpoint, rank_browser_endpoint, rewrite_url_for_browser};
 use crate::PublicKey;
 use crate::errors::{PkarrError, RequestError, Result};
 use crate::{PubkyHttpClient, cross_log};
@@ -110,6 +113,16 @@ impl PubkyHttpClient {
             .into());
         };
 
+        // Do not await leftover stream items. pkarr's endpoint generator
+        // parks at `yield` after the first usable record; the next `poll`
+        // can `resolve()` another pubkey (fresh relay GETs) and races
+        // reqwest's wasm AbortGuard on canceled sibling pkarr fetches
+        // (`RuntimeError: unreachable`). Unused Endpoint values drop
+        // synchronously here. That Drop is not the homeserver write —
+        // write AbortGuard is owned by the later PUT/DELETE Response
+        // and is still drained by `commit_issued_http_write`.
+        drop(stream);
+
         self.apply_endpoint_to_url(url, &endpoint)?;
 
         cross_log!(debug, "Transformed URL to {}", url.as_str());
@@ -121,59 +134,45 @@ impl PubkyHttpClient {
     where
         S: futures_lite::Stream<Item = Endpoint> + Unpin,
     {
+        let mut best = None;
         while let Some(endpoint) = stream.next().await {
-            if endpoint.domain().is_some() {
+            let rank = rank_browser_endpoint(endpoint.domain(), endpoint_has_http_port(&endpoint));
+            if let ControlFlow::Break(endpoint) =
+                consider_browser_endpoint(rank, endpoint, &mut best)
+            {
                 return Some(endpoint);
             }
         }
 
-        None
+        best.map(|(_, endpoint)| endpoint)
     }
 
     fn apply_endpoint_to_url(&self, url: &mut Url, endpoint: &Endpoint) -> Result<()> {
-        let is_testnet_domain = endpoint.domain().is_some_and(|domain| {
-            if domain == "localhost" {
-                return true;
-            }
-            if let Some(test_host) = &self.testnet_host {
-                return domain == test_host;
-            }
-            false
-        });
-
-        if is_testnet_domain {
-            url.set_scheme("http")
-                .map_err(|_err| url::ParseError::RelativeUrlWithCannotBeABaseBase)?;
-
-            let http_port = endpoint
-                .get_param(pubky_common::constants::reserved_param_keys::HTTP_PORT)
-                .and_then(|param| match param {
-                    SVCParam::Unknown(_, bytes) => <[u8; 2]>::try_from(bytes.as_ref()).ok(),
-                    SVCParam::Port(port) => Some(port.to_be_bytes()),
-                    _ => None,
-                })
-                .map(u16::from_be_bytes)
-                .ok_or_else(|| {
-                    PkarrError::InvalidRecord(
-                        "Pkarr record missing required HTTP_PORT parameter for testnet endpoint"
-                            .to_string(),
-                    )
-                })?;
-
-            url.set_port(Some(http_port))
-                .map_err(|_err| url::ParseError::InvalidPort)?;
-        } else if let Some(port) = endpoint.port() {
-            url.set_port(Some(port))
-                .map_err(|_err| url::ParseError::InvalidPort)?;
-        }
-
-        if let Some(domain) = endpoint.domain() {
-            url.set_host(Some(domain))
-                .map_err(|_err| url::ParseError::SetHostOnCannotBeABaseUrl)?;
-        }
-
-        Ok(())
+        let domain = endpoint.domain().ok_or_else(|| {
+            PkarrError::InvalidRecord(
+                "WASM client cannot use a Pubky TLS endpoint (no ICANN/HTTP domain)".to_string(),
+            )
+        })?;
+        rewrite_url_for_browser(url, domain, endpoint_http_port(endpoint), endpoint.port())
     }
+}
+
+fn endpoint_has_http_port(endpoint: &Endpoint) -> bool {
+    endpoint
+        .get_param(pubky_common::constants::reserved_param_keys::HTTP_PORT)
+        .is_some()
+}
+
+fn endpoint_http_port(endpoint: &Endpoint) -> Option<u16> {
+    endpoint
+        .get_param(pubky_common::constants::reserved_param_keys::HTTP_PORT)
+        .and_then(|param| match param {
+            SVCParam::Unknown(_, bytes) => <[u8; 2]>::try_from(bytes.as_ref())
+                .ok()
+                .map(u16::from_be_bytes),
+            SVCParam::Port(port) => Some(*port),
+            _ => None,
+        })
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

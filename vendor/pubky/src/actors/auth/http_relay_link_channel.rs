@@ -9,6 +9,8 @@ use pubky_common::crypto::hash;
 use reqwest::Method;
 use url::Url;
 
+#[cfg(test)]
+use crate::util::commit_issued_http_write;
 use crate::{PubkyHttpClient, cross_log, util::check_http_status};
 
 /// Default HTTP relay base when none is supplied.
@@ -165,7 +167,8 @@ impl HttpRelayLinkChannel {
         let request = client.cross_request(Method::POST, self.to_url()).await?;
         let request = request.body(body.to_vec());
         let response = request.send().await?;
-        response.error_for_status()?;
+        let response = response.error_for_status()?;
+        commit_issued_http_write(response).await?;
         Ok(())
     }
 }
