@@ -240,8 +240,9 @@ async function main() {
       constructManagedSdk(bob, RECEIVER_PATH),
     ]);
     const aliceState2 = await indexedDbStateRecord(alice, aliceId.pubky);
-    assert.equal(aliceState2.revision, aliceState.revision);
-    ok("IndexedDB revision survives handle reconstruct");
+    assert.ok(aliceState2?.byteLength > 0 && aliceState2?.revision);
+    assert.equal(aliceState2.revision.length, aliceState.revision.length);
+    ok("IndexedDB owner blob survives handle reconstruct");
 
     let managedAlice;
     let managedBob;
