@@ -21,12 +21,18 @@ mod keys;
 mod link;
 mod marker;
 mod memory;
+#[cfg(target_arch = "wasm32")]
+mod sdk;
+#[cfg(target_arch = "wasm32")]
+mod sdk_storage;
 mod session;
 
 pub use keys::*;
 pub use link::*;
 pub use marker::*;
 pub use memory::*;
+#[cfg(target_arch = "wasm32")]
+pub use sdk::*;
 pub use session::*;
 
 use wasm_bindgen::prelude::*;

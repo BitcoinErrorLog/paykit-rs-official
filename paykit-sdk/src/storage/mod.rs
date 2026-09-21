@@ -35,7 +35,8 @@ pub type StorageTransactionCallback<'a> =
 /// allocation, stable FIFO ordering for outbound/private-stream records, and
 /// lease-aware writes. The SDK assumes all mutation methods called inside one
 /// transaction either commit together or roll back together.
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait StorageAdapter: Send + Sync {
     /// Run an atomic storage transaction through an object-safe erased callback.
     async fn transaction_erased<'a>(
@@ -91,7 +92,8 @@ pub trait StorageAdapter: Send + Sync {
     }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<T> StorageAdapter for Box<T>
 where
     T: StorageAdapter + ?Sized,
@@ -104,7 +106,8 @@ where
     }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<T> StorageAdapter for Arc<T>
 where
     T: StorageAdapter + ?Sized,
