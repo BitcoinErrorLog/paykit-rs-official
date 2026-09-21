@@ -155,6 +155,21 @@ impl PaykitSdkError {
             _ => false,
         }
     }
+
+    /// A replacement drain may persist `drain_acknowledged` only after a
+    /// successful receive or an integrity failure that cannot be retried
+    /// (`RestoreReplayError`, protocol/AEAD, already RecoveryRequired).
+    /// Storage, Identity, Policy, and ordinary Transport/NotFound must not
+    /// acknowledge: the next tick retries drain and must not clear.
+    pub(crate) fn completes_replacement_drain_attempt(&self) -> bool {
+        match self {
+            Self::Transport { context, source } => {
+                mentions_restore_replay(context, source.as_ref())
+            }
+            Self::Protocol { .. } | Self::RecoveryRequired { .. } => true,
+            _ => false,
+        }
+    }
 }
 
 #[cfg(test)]

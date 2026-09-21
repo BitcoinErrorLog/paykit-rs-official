@@ -101,3 +101,48 @@ fn restore_replay_transport_requires_link_recovery() {
     assert!(!paykit_lib_error_requires_link_recovery(&timeout));
     assert!(PaykitSdkError::from(timeout).is_retryable_homeserver_failure());
 }
+
+#[test]
+fn replacement_drain_acks_integrity_not_identity_storage_or_transport() {
+    assert!(PaykitSdkError::from(paykit_lib::PaykitError::Transport {
+        context: "failed to restore Encrypted Link: RestoreReplayError".into(),
+        source: anyhow::anyhow!("pubky-noise restore failed: RestoreReplayError"),
+    })
+    .completes_replacement_drain_attempt());
+    assert!(PaykitSdkError::from(paykit_lib::PaykitError::InvalidData {
+        context: "aead".into(),
+        source: None,
+    })
+    .completes_replacement_drain_attempt());
+    assert!(PaykitSdkError::RecoveryRequired {
+        context: "already recovering".into(),
+        source: None,
+    }
+    .completes_replacement_drain_attempt());
+
+    assert!(!PaykitSdkError::Identity {
+        context: "missing session".into(),
+        source: None,
+    }
+    .completes_replacement_drain_attempt());
+    assert!(!PaykitSdkError::Storage {
+        context: "blob write".into(),
+        source: None,
+    }
+    .completes_replacement_drain_attempt());
+    assert!(!PaykitSdkError::Policy {
+        context: "blocked".into(),
+        source: None,
+    }
+    .completes_replacement_drain_attempt());
+    assert!(!PaykitSdkError::Transport {
+        context: "homeserver timeout".into(),
+        source: None,
+    }
+    .completes_replacement_drain_attempt());
+    assert!(!PaykitSdkError::NotFound {
+        context: "slot".into(),
+        source: None,
+    }
+    .completes_replacement_drain_attempt());
+}

@@ -985,8 +985,8 @@ where
             .await
         {
             Ok(_) => {}
-            Err(err) if err.is_retryable_homeserver_failure() => return Err(err),
-            Err(_) => {}
+            Err(err) if err.completes_replacement_drain_attempt() => {}
+            Err(err) => return Err(err),
         }
         progress.drain_acknowledged = true;
         save_replacement_progress_with_lease(

@@ -594,6 +594,30 @@ async fn test_ensure_confirms_peer_capability_from_stored_marker_without_clearin
     assert!(link_state.replacement.peer_capability_confirmed);
     assert!(!link_state.replacement.drain_acknowledged);
     assert!(!link_state.replacement.write_path_cleared);
+
+    let lease = sdk
+        .claim_peer_link_operation(&counterparty, &receiver_path())
+        .await
+        .unwrap();
+    let drain = sdk
+        .ensure_link_with_peer_with_claim(
+            counterparty.clone(),
+            EncryptedLinkHandshakeRole::Initiator,
+            2,
+            lease.clone(),
+        )
+        .await;
+    let _ = sdk.release_peer_link_operation(&lease).await;
+    assert!(matches!(drain, Err(PaykitSdkError::Identity { .. })));
+    let after_drain =
+        crate::load_encrypted_link_state(&storage, &counterparty, &receiver_path())
+            .await
+            .unwrap()
+            .unwrap();
+    assert_eq!(after_drain.link_snapshot, Some(vec![1, 2, 3]));
+    assert!(after_drain.replacement.peer_capability_confirmed);
+    assert!(!after_drain.replacement.drain_acknowledged);
+    assert!(!after_drain.replacement.write_path_cleared);
 }
 
 #[tokio::test]
