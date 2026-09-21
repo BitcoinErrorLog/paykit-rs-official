@@ -1,3 +1,10 @@
+//! Session secret import/export.
+//!
+//! Filesystem helpers stay native-only. `import_secret`/`export_secret` are
+//! available on wasm32, matching pubky/pubky-core@ce5bf6b7
+//! (`pubky-sdk/src/actors/auth/cookie/legacy_api.rs`).
+
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
 use crate::PublicKey;
@@ -89,6 +96,7 @@ impl PubkySession {
     /// On Unix, permissions are set to `0o600`.
     /// # Errors
     /// - Returns [`std::io::Error`] if the file cannot be written or permissions cannot be set.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn write_secret_file<P: AsRef<Path>>(&self, secret_file_path: P) -> std::io::Result<()> {
         let token = self.export_secret();
         let p = secret_file_path.as_ref();
@@ -135,6 +143,7 @@ impl PubkySession {
     /// - Returns [`crate::errors::RequestError::Validation`] when the file extension is not `.sess`.
     /// - Returns [`crate::errors::RequestError::Validation`] if the file cannot be read.
     /// - Propagates errors from [`Self::import_secret`] when the stored token is invalid or when the session cannot be revalidated.
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn from_secret_file(
         secret_file_path: &Path,
         client: Option<PubkyHttpClient>,

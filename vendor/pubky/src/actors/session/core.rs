@@ -36,8 +36,10 @@ pub struct PubkySession {
     /// Known session for this session.
     pub(crate) info: SessionInfo,
 
-    /// Native-only, single session cookie secret for `_pubky.<pubky>`. Never shared across agents.
-    #[cfg(not(target_arch = "wasm32"))]
+    /// Session cookie secret for `_pubky.<pubky>`. Present on every target so
+    /// `export_secret`/`import_secret` compile on wasm32 (ported from
+    /// pubky/pubky-core@ce5bf6b7). SessionStorage still attaches this cookie
+    /// only on native; the browser cookie jar is the wasm credential.
     pub(crate) cookie: String,
 }
 
@@ -84,7 +86,11 @@ impl PubkySession {
             let bytes = response.bytes().await?;
             let info = SessionInfo::deserialize(&bytes)?;
             cross_log!(info, "Hydrated WASM session for {}", info.public_key());
-            Ok(Self { client, info })
+            Ok(Self {
+                client,
+                info,
+                cookie: String::new(),
+            })
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -238,7 +244,11 @@ impl PubkySession {
             message: format!("invalid session export: {e}"),
         })?;
 
-        let mut session = Self { client, info };
+        let mut session = Self {
+            client,
+            info,
+            cookie: String::new(),
+        };
         let info = session
             .revalidate()
             .await?
@@ -289,7 +299,6 @@ impl std::fmt::Debug for PubkySession {
         let mut ds = f.debug_struct("PubkySession");
         ds.field("client", &self.client);
         ds.field("info", &self.info);
-        #[cfg(not(target_arch = "wasm32"))]
         ds.field("cookie", &"<redacted>");
         ds.finish()
     }
