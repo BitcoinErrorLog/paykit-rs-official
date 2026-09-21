@@ -97,6 +97,7 @@ async fn test_persist_private_stream_batch_stores_messages_and_checkpoint() {
         handshake_role: None,
         generation: 1,
         checkpointed_at: timestamp(),
+        replacement: Default::default(),
     };
     let messages = vec![
         private_message(r#"{"version":1,"kind":"paykit.unknown","body":{}}"#),
@@ -173,6 +174,7 @@ async fn test_persist_private_stream_batch_empty_checkpoint_updates_sync_time() 
         handshake_role: None,
         generation: 1,
         checkpointed_at: timestamp(),
+        replacement: Default::default(),
     };
 
     let report = persist_private_stream_batch(
@@ -565,6 +567,7 @@ async fn test_persist_private_stream_batch_rolls_back_with_stale_lease() {
         handshake_role: None,
         generation: 1,
         checkpointed_at: timestamp() + chrono::Duration::seconds(12),
+        replacement: Default::default(),
     };
 
     let result = persist_private_stream_batch_with_link_lease(

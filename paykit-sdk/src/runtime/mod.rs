@@ -49,9 +49,11 @@ use crate::{
     domain::linked_peers::{
         default_linked_peer, mark_recovery_required_for_marker_in_transaction,
         mark_recovery_required_in_transaction, mark_recovery_required_with_lease,
-        save_link_handshake_state_if_generation_with_lease, save_link_handshake_state_with_lease,
-        save_linked_peer_link_state_if_generation_with_lease, save_linked_peer_state_with_lease,
+        next_replacement_step, save_link_handshake_state_if_generation_with_lease,
+        save_link_handshake_state_with_lease, save_linked_peer_link_state_if_generation_with_lease,
+        save_linked_peer_state_with_lease, save_replacement_progress_with_lease,
         EncryptedLinkHandshakeRole, LinkedPeerHandshakeReport, LinkedPeerState,
+        PeerCapabilityEvidence, ReplacementStep, ReplacementView,
     },
     domain::outbound_private::{
         claim_next_outbound_private_message_with_peer_lease, mark_outbound_failed,
@@ -105,9 +107,11 @@ use crate::{
     identity::{IdentityState, IdentityStatus},
     storage::{
         outbound_private_queue_head_is_claimable, EncryptedLinkStateRecord, LinkedPeerRecord,
-        OutboundPrivateMessageRecord, PeerLinkOperationLease, StorageAdapter, StorageTransaction,
+        OutboundPrivateMessageRecord, PeerLinkOperationLease, ReplacementHandshakeProgress,
+        StorageAdapter, StorageTransaction,
     },
-    PaykitReceiverPath, PaykitSdkError, PaymentAdapter, PrivatePaymentEndpointCandidate,
+    error::paykit_lib_error_requires_link_recovery, PaykitReceiverPath, PaykitSdkError,
+    PaymentAdapter, PrivatePaymentEndpointCandidate,
     PrivatePaymentEndpointReservation, PrivatePaymentEndpointReservationCancellation,
     PrivatePaymentEndpointSelectionRequest, PrivatePaymentListView, PrivateReceivingDetail,
     PubkyPublicKey, PubkySessionAccess, PubkySessionProvider, PublicPaymentEndpointCandidate,
@@ -628,6 +632,10 @@ fn is_pubky_not_found(err: &PubkyError) -> bool {
 
 fn public_resource_uri(public_key: &PubkyPublicKey, path: &str) -> String {
     format!("pubky://{public_key}{path}")
+}
+
+fn link_handshake_error_requires_recovery(err: &PaykitSdkError) -> bool {
+    matches!(err, PaykitSdkError::RecoveryRequired { .. })
 }
 
 #[cfg(test)]

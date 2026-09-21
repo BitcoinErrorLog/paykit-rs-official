@@ -44,6 +44,7 @@ async fn test_mark_private_recovery_pending_skips_newer_link_generation() {
                     handshake_role: None,
                     generation: 2,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 tx.claim_peer_link_operation(
                     &counterparty,
@@ -209,6 +210,7 @@ async fn test_publish_recovery_marker_disabled_does_not_mutate_link_state() {
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -281,6 +283,7 @@ async fn test_publish_recovery_marker_without_live_session_does_not_mutate_link_
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -342,6 +345,7 @@ async fn test_remote_recovery_marker_observation_rejects_active_peer_lease() {
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 tx.claim_peer_link_operation(
                     &counterparty,
@@ -424,6 +428,7 @@ async fn test_remote_recovery_marker_observation_ignores_stale_marker() {
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -492,6 +497,7 @@ async fn test_remote_recovery_marker_observation_ignores_same_second_marker() {
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now() + ChronoDuration::milliseconds(500),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -560,6 +566,7 @@ async fn test_remote_recovery_marker_observation_ignores_marker_before_private_r
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now() + ChronoDuration::seconds(1),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -628,6 +635,7 @@ async fn test_remote_recovery_marker_observation_preserves_newer_handshake() {
                     handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -700,6 +708,7 @@ async fn test_remote_recovery_marker_observation_preserves_in_progress_handshake
                     handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -772,6 +781,7 @@ async fn test_remote_recovery_marker_observation_accepts_newer_marker_after_stal
                     handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
                     generation: 7,
                     checkpointed_at: FixedClock.now() - ChronoDuration::seconds(120),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -812,7 +822,7 @@ async fn test_remote_recovery_marker_observation_accepts_newer_marker_after_stal
         .unwrap();
     assert!(link_state.handshake_snapshot.is_none());
     assert!(link_state.handshake_role.is_none());
-    assert_eq!(link_state.generation, 8);
+    assert_eq!(link_state.generation, 7);
 }
 
 #[tokio::test]
@@ -845,6 +855,7 @@ async fn test_remote_recovery_marker_observation_preserves_in_progress_handshake
                     handshake_role: Some(EncryptedLinkHandshakeRole::Responder),
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 tx.claim_peer_link_operation(
                     &counterparty,
@@ -922,6 +933,7 @@ async fn test_mark_private_recovery_pending_skips_active_peer_lease() {
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 tx.claim_peer_link_operation(
                     &counterparty,
@@ -999,6 +1011,7 @@ async fn test_automatic_recovery_marker_publish_records_missing_session() {
                     handshake_role: None,
                     generation: 7,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -1105,6 +1118,7 @@ async fn test_mark_private_recovery_pending_preserves_marker_until_publish() {
                     handshake_role: None,
                     generation: 2,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }
@@ -1199,6 +1213,7 @@ async fn test_mark_private_recovery_pending_preserves_ongoing_local_marker() {
                     handshake_role: None,
                     generation: 2,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }

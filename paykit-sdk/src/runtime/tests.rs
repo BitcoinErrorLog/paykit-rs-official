@@ -535,6 +535,7 @@ async fn seed_initialized_identity_and_link(
                 handshake_role: None,
                 generation: 0,
                 checkpointed_at: FixedClock.now(),
+                replacement: Default::default(),
             });
             Ok(())
         })
@@ -580,6 +581,7 @@ async fn seed_initialized_identity_and_handshake(
                 handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
                 generation: 0,
                 checkpointed_at: FixedClock.now(),
+                replacement: Default::default(),
             });
             Ok(())
         })

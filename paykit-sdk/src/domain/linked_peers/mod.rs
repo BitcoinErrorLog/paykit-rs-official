@@ -6,9 +6,15 @@ use serde::{Deserialize, Serialize};
 use crate::{
     storage::{
         require_peer_link_operation_lease, EncryptedLinkStateRecord, LinkedPeerRecord,
-        PeerLinkOperationLease, StorageAdapter, StorageTransaction,
+        PeerLinkOperationLease, ReplacementHandshakeProgress, StorageAdapter, StorageTransaction,
     },
     PaykitReceiverPath, PaykitSdkError, PubkyPublicKey, Result,
+};
+
+mod replacement;
+
+pub(crate) use replacement::{
+    next_replacement_step, PeerCapabilityEvidence, ReplacementStep, ReplacementView,
 };
 
 /// Local role for an in-progress Encrypted Link Handshake.
@@ -132,18 +138,9 @@ fn report_current_link_state(
     link_state: &EncryptedLinkStateRecord,
     now: DateTime<Utc>,
 ) -> LinkedPeerHandshakeReport {
-    if link_state.link_snapshot.is_some() {
-        peer.state = LinkedPeerState::Linked;
-        peer.last_sync_at = Some(now);
-        peer.failure_count = 0;
-        LinkedPeerHandshakeReport {
-            counterparty,
-            counterparty_receiver_path,
-            state: LinkedPeerState::Linked,
-            generation: link_state.generation,
-            handshake_role: None,
-        }
-    } else if link_state.handshake_snapshot.is_some() {
+    // A retained old snapshot plus an in-progress replacement handshake is
+    // still Linking. Prefer handshake so ensure does not short-circuit to Linked.
+    if link_state.handshake_snapshot.is_some() {
         peer.state = LinkedPeerState::Linking;
         peer.last_sync_at = Some(now);
         peer.failure_count = 0;
@@ -153,6 +150,17 @@ fn report_current_link_state(
             state: LinkedPeerState::Linking,
             generation: link_state.generation,
             handshake_role: link_state.handshake_role,
+        }
+    } else if link_state.link_snapshot.is_some() {
+        peer.state = LinkedPeerState::Linked;
+        peer.last_sync_at = Some(now);
+        peer.failure_count = 0;
+        LinkedPeerHandshakeReport {
+            counterparty,
+            counterparty_receiver_path,
+            state: LinkedPeerState::Linked,
+            generation: link_state.generation,
+            handshake_role: None,
         }
     } else {
         peer.state = LinkedPeerState::RecoveryRequired;
@@ -338,10 +346,23 @@ where
     }
     tx.save_linked_peer(record);
     // Keep the last viable link snapshot until the recovery orchestrator has
-    // drained it and a replacement link is established. Dropping it here
-    // destroys the only local route to the old inbox before that drain can
-    // happen. The subsequent drain/clear/handshake sequence owns generation
-    // advancement and snapshot replacement.
+    // drained it and a replacement link is established. Drop a stale
+    // handshake without bumping generation. Reset replacement flags for a
+    // new episode so a later drain/clear cannot inherit a previous attempt.
+    if let Some(mut link_state) =
+        tx.encrypted_link_state(counterparty, counterparty_receiver_path)
+    {
+        let drop_stale_handshake =
+            link_state.handshake_snapshot.is_some() || link_state.handshake_role.is_some();
+        if new_episode || drop_stale_handshake {
+            link_state.handshake_snapshot = None;
+            link_state.handshake_role = None;
+            if new_episode {
+                link_state.replacement = ReplacementHandshakeProgress::default();
+            }
+            tx.save_encrypted_link_state(link_state);
+        }
+    }
     Ok(RecoveryRequiredMark { new_episode })
 }
 
@@ -477,11 +498,17 @@ where
             let link_state = EncryptedLinkStateRecord {
                 counterparty: counterparty.clone(),
                 counterparty_receiver_path: counterparty_receiver_path.clone(),
-                link_snapshot: None,
+                link_snapshot: existing
+                    .as_ref()
+                    .and_then(|record| record.link_snapshot.clone()),
                 handshake_snapshot: Some(handshake_snapshot),
                 handshake_role: Some(handshake_role),
                 generation,
                 checkpointed_at: now,
+                replacement: existing
+                    .as_ref()
+                    .map(|record| record.replacement.clone())
+                    .unwrap_or_default(),
             };
 
             tx.save_linked_peer(peer.clone());
@@ -581,6 +608,30 @@ where
                 });
             ensure_not_blocked(&peer)?;
 
+            if peer.state == LinkedPeerState::RecoveryRequired {
+                // A stale in-flight handshake advance must not resurrect
+                // handshake bytes before drain-then-clear has started a
+                // replacement. Unconditional save is the replacement start.
+                if let Some(existing) =
+                    tx.encrypted_link_state(&counterparty, &counterparty_receiver_path)
+                {
+                    return Ok(LinkedPeerHandshakeReport {
+                        counterparty,
+                        counterparty_receiver_path,
+                        state: LinkedPeerState::RecoveryRequired,
+                        generation: existing.generation,
+                        handshake_role: None,
+                    });
+                }
+                return Ok(LinkedPeerHandshakeReport {
+                    counterparty,
+                    counterparty_receiver_path,
+                    state: LinkedPeerState::RecoveryRequired,
+                    generation: 0,
+                    handshake_role: None,
+                });
+            }
+
             if let Some(existing) =
                 tx.encrypted_link_state(&counterparty, &counterparty_receiver_path)
             {
@@ -601,14 +652,21 @@ where
             peer.last_sync_at = Some(handshake.now);
             peer.failure_count = 0;
 
+            let existing = tx.encrypted_link_state(&counterparty, &counterparty_receiver_path);
             let link_state = EncryptedLinkStateRecord {
                 counterparty: counterparty.clone(),
                 counterparty_receiver_path: counterparty_receiver_path.clone(),
-                link_snapshot: None,
+                link_snapshot: existing
+                    .as_ref()
+                    .and_then(|record| record.link_snapshot.clone()),
                 handshake_snapshot: Some(handshake.handshake_snapshot),
                 handshake_role: Some(handshake.handshake_role),
                 generation: handshake.expected_generation.saturating_add(1),
                 checkpointed_at: handshake.now,
+                replacement: existing
+                    .as_ref()
+                    .map(|record| record.replacement.clone())
+                    .unwrap_or_default(),
             };
 
             tx.save_linked_peer(peer.clone());
@@ -661,6 +719,7 @@ where
                 handshake_role: None,
                 generation,
                 checkpointed_at: now,
+                replacement: Default::default(),
             };
 
             tx.save_linked_peer(peer.clone());
@@ -752,6 +811,7 @@ where
                 handshake_role: None,
                 generation: expected_generation.saturating_add(1),
                 checkpointed_at: now,
+                replacement: Default::default(),
             };
 
             tx.save_linked_peer(peer.clone());
@@ -763,6 +823,37 @@ where
                 generation: link_state.generation,
                 handshake_role: link_state.handshake_role,
             })
+        })
+        .await
+}
+
+pub(crate) async fn save_replacement_progress_with_lease<S>(
+    storage: &S,
+    counterparty: PubkyPublicKey,
+    lease: PeerLinkOperationLease,
+    now: DateTime<Utc>,
+    progress: ReplacementHandshakeProgress,
+) -> Result<()>
+where
+    S: StorageAdapter,
+{
+    storage
+        .transaction(move |tx| {
+            require_peer_link_operation_lease(tx, &lease)?;
+            let Some(mut link_state) =
+                tx.encrypted_link_state(&counterparty, &lease.counterparty_receiver_path)
+            else {
+                return Err(PaykitSdkError::RecoveryRequired {
+                    context: format!(
+                        "no Encrypted Link state for replacement progress on {counterparty}"
+                    ),
+                    source: None,
+                });
+            };
+            link_state.replacement = progress;
+            link_state.checkpointed_at = now;
+            tx.save_encrypted_link_state(link_state);
+            Ok(())
         })
         .await
 }

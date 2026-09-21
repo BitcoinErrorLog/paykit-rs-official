@@ -264,6 +264,7 @@ fn test_storage_state_blob_round_trips_private_sync_records() {
             handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
             generation: 1,
             checkpointed_at: now,
+            replacement: Default::default(),
         },
     )]);
     assert_round_trip("encrypted_link", &state);

@@ -20,6 +20,7 @@ async fn test_restore_backup_state_marks_link_state_without_peer_recovery_requir
             handshake_role: None,
             generation: 0,
             checkpointed_at: timestamp(),
+            replacement: Default::default(),
         }],
         outbound_private_messages: Vec::new(),
         private_stream_items: Vec::new(),

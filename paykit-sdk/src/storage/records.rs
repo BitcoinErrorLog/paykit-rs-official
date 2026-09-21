@@ -143,6 +143,24 @@ pub struct PaymentEndpointReservationRecord {
     pub created_at: DateTime<Utc>,
 }
 
+/// Durable progress through drain-then-clear-then-handshake recovery.
+///
+/// Flags are sticky for one recovery episode. A new RecoveryRequired episode
+/// resets them. The old `link_snapshot` stays until a replacement handshake
+/// reaches `Linked`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplacementHandshakeProgress {
+    /// `receive_private_messages` was attempted on the retained snapshot.
+    #[serde(default)]
+    pub drain_acknowledged: bool,
+    /// Local write-path slots were deleted after drain + capability.
+    #[serde(default)]
+    pub write_path_cleared: bool,
+    /// Peer recovery-marker capability was confirmed for this episode.
+    #[serde(default)]
+    pub peer_capability_confirmed: bool,
+}
+
 /// Durable Encrypted Link snapshot state.
 ///
 /// Snapshot bytes contain Noise key and counter material. Store them encrypted
@@ -163,6 +181,9 @@ pub struct EncryptedLinkStateRecord {
     pub generation: u64,
     /// Last checkpoint time.
     pub checkpointed_at: DateTime<Utc>,
+    /// Replacement handshake progress for the current recovery episode.
+    #[serde(default)]
+    pub replacement: ReplacementHandshakeProgress,
 }
 
 impl fmt::Debug for EncryptedLinkStateRecord {
@@ -186,6 +207,7 @@ impl fmt::Debug for EncryptedLinkStateRecord {
             .field("handshake_role", &self.handshake_role)
             .field("generation", &self.generation)
             .field("checkpointed_at", &self.checkpointed_at)
+            .field("replacement", &self.replacement)
             .finish()
     }
 }

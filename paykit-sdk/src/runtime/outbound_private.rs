@@ -300,8 +300,10 @@ where
         let snapshot = match paykit_lib::EncryptedLinkSnapshot::deserialize(snapshot_bytes) {
             Ok(snapshot) => snapshot,
             Err(err) => {
-                self.mark_outbound_link_recovery_required(counterparty, lease, session_access)
-                    .await?;
+                if paykit_lib_error_requires_link_recovery(&err) {
+                    self.mark_outbound_link_recovery_required(counterparty, lease, session_access)
+                        .await?;
+                }
                 return Err(err.into());
             }
         };
@@ -318,8 +320,10 @@ where
         {
             Ok(link) => link,
             Err(err) => {
-                self.mark_outbound_link_recovery_required(counterparty, lease, session_access)
-                    .await?;
+                if paykit_lib_error_requires_link_recovery(&err) {
+                    self.mark_outbound_link_recovery_required(counterparty, lease, session_access)
+                        .await?;
+                }
                 return Err(err.into());
             }
         };

@@ -117,5 +117,20 @@ impl From<paykit_lib::PaykitError> for PaykitSdkError {
     }
 }
 
+/// Integrity and validation failures justify Encrypted Link recovery.
+/// Transport and NotFound never do.
+pub(crate) fn paykit_lib_error_requires_link_recovery(err: &paykit_lib::PaykitError) -> bool {
+    !matches!(
+        err,
+        paykit_lib::PaykitError::Transport { .. } | paykit_lib::PaykitError::NotFound(_)
+    )
+}
+
+impl PaykitSdkError {
+    pub(crate) fn is_retryable_homeserver_failure(&self) -> bool {
+        matches!(self, Self::Transport { .. } | Self::NotFound { .. })
+    }
+}
+
 #[cfg(test)]
 mod tests;

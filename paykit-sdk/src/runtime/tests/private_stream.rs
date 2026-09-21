@@ -24,6 +24,7 @@ async fn test_receive_private_messages_requires_pubky_session() {
                     handshake_role: None,
                     generation: 1,
                     checkpointed_at: FixedClock.now(),
+                    replacement: Default::default(),
                 });
                 Ok(())
             }

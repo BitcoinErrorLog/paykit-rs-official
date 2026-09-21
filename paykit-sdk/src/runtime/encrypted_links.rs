@@ -404,6 +404,7 @@ where
                     handshake_role: None,
                     generation,
                     checkpointed_at: now,
+                    replacement: Default::default(),
                 });
                 Ok(LinkedPeerHandshakeReport {
                     counterparty,
@@ -460,30 +461,26 @@ where
             })
             .await?;
 
-        let mut report = match (peer_state, link_state) {
-            (Some(LinkedPeerState::RecoveryRequired), _) => {
-                self.start_link_handshake_with_claim(counterparty.clone(), role, lease.clone())
-                    .await?
-            }
-            (_, Some(state)) if state.link_snapshot.is_some() => {
-                save_linked_peer_state_with_lease(
-                    &self.storage,
-                    counterparty.clone(),
-                    LinkedPeerState::Linked,
-                    lease.clone(),
-                    self.clock.now(),
-                )
+        if matches!(peer_state, Some(LinkedPeerState::Blocked)) {
+            return Err(PaykitSdkError::Policy {
+                context: format!("counterparty {counterparty} is blocked"),
+                source: None,
+            });
+        }
+
+        let mut report = if replacement_should_run(peer_state.as_ref(), link_state.as_ref()) {
+            let report = self
+                .advance_replacement_with_claim(counterparty.clone(), role, lease.clone())
                 .await?;
-                LinkedPeerHandshakeReport {
-                    counterparty: counterparty.clone(),
-                    counterparty_receiver_path: state.counterparty_receiver_path,
-                    state: LinkedPeerState::Linked,
-                    generation: state.generation,
-                    handshake_role: None,
-                }
+            if report.state != LinkedPeerState::Linking {
+                return Ok(report);
             }
-            (_, Some(state)) if state.handshake_snapshot.is_some() => {
-                if state.handshake_role.is_none() {
+            report
+        } else {
+            match (peer_state, link_state) {
+                (_, Some(state))
+                    if state.handshake_snapshot.is_some() && state.handshake_role.is_none() =>
+                {
                     let mark = mark_recovery_required_with_lease(
                         &self.storage,
                         counterparty.clone(),
@@ -504,30 +501,52 @@ where
                         source: None,
                     });
                 }
-                save_linked_peer_state_with_lease(
-                    &self.storage,
-                    counterparty.clone(),
-                    LinkedPeerState::Linking,
-                    lease.clone(),
-                    self.clock.now(),
-                )
-                .await?;
-                LinkedPeerHandshakeReport {
-                    counterparty: counterparty.clone(),
-                    counterparty_receiver_path: state.counterparty_receiver_path,
-                    state: LinkedPeerState::Linking,
-                    generation: state.generation,
-                    handshake_role: state.handshake_role,
+                (_, Some(state)) if state.handshake_snapshot.is_some() => {
+                    save_linked_peer_state_with_lease(
+                        &self.storage,
+                        counterparty.clone(),
+                        LinkedPeerState::Linking,
+                        lease.clone(),
+                        self.clock.now(),
+                    )
+                    .await?;
+                    LinkedPeerHandshakeReport {
+                        counterparty: counterparty.clone(),
+                        counterparty_receiver_path: state.counterparty_receiver_path,
+                        state: LinkedPeerState::Linking,
+                        generation: state.generation,
+                        handshake_role: state.handshake_role,
+                    }
                 }
-            }
-            _ => {
-                self.start_link_handshake_with_claim(counterparty.clone(), role, lease.clone())
-                    .await?
+                (_, Some(state)) if state.link_snapshot.is_some() => {
+                    save_linked_peer_state_with_lease(
+                        &self.storage,
+                        counterparty.clone(),
+                        LinkedPeerState::Linked,
+                        lease.clone(),
+                        self.clock.now(),
+                    )
+                    .await?;
+                    LinkedPeerHandshakeReport {
+                        counterparty: counterparty.clone(),
+                        counterparty_receiver_path: state.counterparty_receiver_path,
+                        state: LinkedPeerState::Linked,
+                        generation: state.generation,
+                        handshake_role: None,
+                    }
+                }
+                _ => {
+                    self.start_link_handshake_with_claim(counterparty.clone(), role, lease.clone())
+                        .await?
+                }
             }
         };
 
         for _ in 0..max_advance_steps {
             if report.state == LinkedPeerState::Linked {
+                return Ok(report);
+            }
+            if report.state == LinkedPeerState::RecoveryRequired {
                 return Ok(report);
             }
             report = match self
@@ -549,8 +568,17 @@ where
                     if !recovery_required {
                         return Err(err);
                     }
-                    self.start_link_handshake_with_claim(counterparty.clone(), role, lease.clone())
-                        .await?
+                    let replacement = self
+                        .advance_replacement_with_claim(
+                            counterparty.clone(),
+                            role,
+                            lease.clone(),
+                        )
+                        .await?;
+                    if replacement.state != LinkedPeerState::Linking {
+                        return Ok(replacement);
+                    }
+                    replacement
                 }
                 Err(err) => return Err(err),
             };
@@ -564,11 +592,26 @@ where
         counterparty: PubkyPublicKey,
         lease: PeerLinkOperationLease,
     ) -> Result<LinkedPeerHandshakeReport> {
-        self.ensure_peer_not_recovery_required_or_blocked(
-            &counterparty,
-            &lease.counterparty_receiver_path,
-        )
-        .await?;
+        self.advance_link_handshake_with_claim_inner(counterparty, lease, false)
+            .await
+    }
+
+    async fn advance_link_handshake_with_claim_inner(
+        &self,
+        counterparty: PubkyPublicKey,
+        lease: PeerLinkOperationLease,
+        allow_recovery: bool,
+    ) -> Result<LinkedPeerHandshakeReport> {
+        if allow_recovery {
+            self.ensure_peer_not_blocked(&counterparty, &lease.counterparty_receiver_path)
+                .await?;
+        } else {
+            self.ensure_peer_not_recovery_required_or_blocked(
+                &counterparty,
+                &lease.counterparty_receiver_path,
+            )
+            .await?;
+        }
         let Some(stored_link_state) = self
             .storage
             .transaction(|tx| {
@@ -581,7 +624,9 @@ where
                 source: None,
             });
         };
-        if stored_link_state.link_snapshot.is_some() {
+        if stored_link_state.handshake_snapshot.is_none()
+            && stored_link_state.link_snapshot.is_some()
+        {
             save_linked_peer_state_with_lease(
                 &self.storage,
                 counterparty.clone(),
@@ -678,8 +723,12 @@ where
     ) -> Result<paykit_lib::EncryptedLinkHandshake> {
         let (session_access, secret_key) = self.private_link_session_access().await?;
         let remote_public_key = counterparty.to_public_key()?;
-        let snapshot = paykit_lib::EncryptedLinkHandshakeSnapshot::deserialize(snapshot_bytes)?;
-        paykit_lib::restore_encrypted_link_handshake(
+        let snapshot = match paykit_lib::EncryptedLinkHandshakeSnapshot::deserialize(snapshot_bytes)
+        {
+            Ok(snapshot) => snapshot,
+            Err(err) => return Err(classified_lib_restore_error(err)),
+        };
+        match paykit_lib::restore_encrypted_link_handshake(
             session_access.session,
             secret_key,
             &remote_public_key,
@@ -689,7 +738,10 @@ where
             snapshot,
         )
         .await
-        .map_err(Into::into)
+        {
+            Ok(handshake) => Ok(handshake),
+            Err(err) => Err(classified_lib_restore_error(err)),
+        }
     }
 
     async fn advance_restored_link_handshake(
@@ -703,7 +755,7 @@ where
         let progress = match paykit_lib::advance_handshake(handshake).await {
             Ok(progress) => progress,
             Err(err) => {
-                let err = PaykitSdkError::from(err);
+                let err = classified_lib_restore_error(err);
                 if link_handshake_error_requires_recovery(&err) {
                     self.mark_link_recovery_required(&counterparty, lease)
                         .await?;
@@ -744,6 +796,293 @@ where
                 Ok(report)
             }
         }
+    }
+
+    async fn advance_replacement_with_claim(
+        &self,
+        counterparty: PubkyPublicKey,
+        role: EncryptedLinkHandshakeRole,
+        lease: PeerLinkOperationLease,
+    ) -> Result<LinkedPeerHandshakeReport> {
+        let (peer, link_state) = self
+            .storage
+            .transaction(|tx| {
+                Ok((
+                    tx.linked_peer(&counterparty, &lease.counterparty_receiver_path),
+                    tx.encrypted_link_state(&counterparty, &lease.counterparty_receiver_path),
+                ))
+            })
+            .await?;
+        if matches!(
+            peer.as_ref().map(|record| &record.state),
+            Some(LinkedPeerState::Blocked)
+        ) {
+            return Err(PaykitSdkError::Policy {
+                context: format!("counterparty {counterparty} is blocked"),
+                source: None,
+            });
+        }
+
+        let has_prior_snapshot = link_state
+            .as_ref()
+            .is_some_and(|state| state.link_snapshot.is_some());
+        let progress = link_state
+            .as_ref()
+            .map(|state| state.replacement.clone())
+            .unwrap_or_default();
+        let capability = if !has_prior_snapshot {
+            PeerCapabilityEvidence::FirstLink
+        } else if progress.peer_capability_confirmed {
+            PeerCapabilityEvidence::Advertised
+        } else {
+            self.probe_peer_recovery_capability(&counterparty, &lease, peer.as_ref())
+                .await?
+        };
+        let view = ReplacementView {
+            has_prior_snapshot,
+            handshake_role: link_state.as_ref().and_then(|state| state.handshake_role),
+            has_handshake_snapshot: link_state
+                .as_ref()
+                .is_some_and(|state| state.handshake_snapshot.is_some()),
+            progress: progress.clone(),
+            capability,
+        };
+        match next_replacement_step(&view) {
+            ReplacementStep::ConfirmPeerCapability => {
+                let mut progress = progress;
+                progress.peer_capability_confirmed = true;
+                let path = lease.counterparty_receiver_path.clone();
+                save_replacement_progress_with_lease(
+                    &self.storage,
+                    counterparty.clone(),
+                    lease,
+                    self.clock.now(),
+                    progress,
+                )
+                .await?;
+                Ok(replacement_recovery_report(
+                    counterparty,
+                    path,
+                    link_state.as_ref(),
+                ))
+            }
+            ReplacementStep::WaitForPeerCapability => Ok(replacement_recovery_report(
+                counterparty,
+                lease.counterparty_receiver_path.clone(),
+                link_state.as_ref(),
+            )),
+            ReplacementStep::FailClosed => Err(PaykitSdkError::RecoveryRequired {
+                context: format!(
+                    "peer recovery-marker capability for {counterparty} is unavailable; snapshots were not cleared"
+                ),
+                source: None,
+            }),
+            ReplacementStep::DrainOldInbox => {
+                self.drain_old_inbox_with_claim(counterparty.clone(), lease.clone(), progress)
+                    .await?;
+                let drained = self
+                    .storage
+                    .transaction(|tx| {
+                        Ok(tx.encrypted_link_state(
+                            &counterparty,
+                            &lease.counterparty_receiver_path,
+                        ))
+                    })
+                    .await?;
+                Ok(replacement_recovery_report(
+                    counterparty,
+                    lease.counterparty_receiver_path.clone(),
+                    drained.as_ref(),
+                ))
+            }
+            ReplacementStep::ClearLocalWritePath => {
+                self.clear_local_write_path_with_claim(
+                    counterparty.clone(),
+                    lease.clone(),
+                    progress,
+                )
+                .await?;
+                let cleared = self
+                    .storage
+                    .transaction(|tx| {
+                        Ok(tx.encrypted_link_state(
+                            &counterparty,
+                            &lease.counterparty_receiver_path,
+                        ))
+                    })
+                    .await?;
+                Ok(replacement_recovery_report(
+                    counterparty,
+                    lease.counterparty_receiver_path.clone(),
+                    cleared.as_ref(),
+                ))
+            }
+            ReplacementStep::StartReplacementHandshake => {
+                self.start_replacement_link_handshake_with_claim(counterparty, role, lease)
+                    .await
+            }
+            ReplacementStep::ResumeReplacementHandshake { .. } => {
+                self.advance_link_handshake_with_claim_inner(counterparty, lease, true)
+                    .await
+            }
+        }
+    }
+
+    async fn probe_peer_recovery_capability(
+        &self,
+        counterparty: &PubkyPublicKey,
+        lease: &PeerLinkOperationLease,
+        peer: Option<&LinkedPeerRecord>,
+    ) -> Result<PeerCapabilityEvidence> {
+        if peer.is_some_and(|record| record.remote_recovery_attempt_id.is_some()) {
+            return Ok(PeerCapabilityEvidence::Advertised);
+        }
+        let public_storage =
+            self.pubky
+                .load_public_storage()
+                .await?
+                .ok_or_else(|| PaykitSdkError::Identity {
+                    context: "no Pubky public storage available for recovery capability lookup"
+                        .into(),
+                    source: None,
+                })?;
+        let (session_access, secret_key) = self.private_link_session_access().await?;
+        let remote_public_key = counterparty.to_public_key()?;
+        let remote_noise_public_key = match self
+            .receiver_noise_public_key(counterparty, &lease.counterparty_receiver_path)
+            .await
+        {
+            Ok(key) => key,
+            Err(err) if err.is_retryable_homeserver_failure() => {
+                return Ok(match err {
+                    PaykitSdkError::NotFound { .. } => PeerCapabilityEvidence::NotFound,
+                    _ => PeerCapabilityEvidence::Transport,
+                });
+            }
+            Err(PaykitSdkError::Protocol { .. }) => {
+                return Ok(PeerCapabilityEvidence::Protocol);
+            }
+            Err(err) => return Err(err),
+        };
+        match paykit_lib::fetch_encrypted_link_recovery_marker(
+            &public_storage,
+            &secret_key,
+            session_access.session.info().public_key(),
+            &remote_public_key,
+            &remote_noise_public_key,
+            &self.config.receiver_path,
+            &lease.counterparty_receiver_path,
+        )
+        .await
+        {
+            Ok(Some(_)) => Ok(PeerCapabilityEvidence::Advertised),
+            Ok(None) => Ok(PeerCapabilityEvidence::Absent),
+            Err(err) => Ok(match err {
+                paykit_lib::PaykitError::Transport { .. } => PeerCapabilityEvidence::Transport,
+                paykit_lib::PaykitError::NotFound(_) => PeerCapabilityEvidence::NotFound,
+                paykit_lib::PaykitError::InvalidData { .. }
+                | paykit_lib::PaykitError::Validation(_) => PeerCapabilityEvidence::Protocol,
+            }),
+        }
+    }
+
+    async fn drain_old_inbox_with_claim(
+        &self,
+        counterparty: PubkyPublicKey,
+        lease: PeerLinkOperationLease,
+        mut progress: ReplacementHandshakeProgress,
+    ) -> Result<()> {
+        let (session_access, _) = self.private_link_session_access().await?;
+        match self
+            .receive_private_messages_with_claim(counterparty.clone(), lease.clone(), session_access)
+            .await
+        {
+            Ok(_) => {}
+            Err(err) if err.is_retryable_homeserver_failure() => return Err(err),
+            Err(_) => {}
+        }
+        progress.drain_acknowledged = true;
+        save_replacement_progress_with_lease(
+            &self.storage,
+            counterparty,
+            lease,
+            self.clock.now(),
+            progress,
+        )
+        .await
+    }
+
+    async fn clear_local_write_path_with_claim(
+        &self,
+        counterparty: PubkyPublicKey,
+        lease: PeerLinkOperationLease,
+        mut progress: ReplacementHandshakeProgress,
+    ) -> Result<()> {
+        let (session_access, secret_key) = self.private_link_session_access().await?;
+        let remote_public_key = counterparty.to_public_key()?;
+        let remote_noise_public_key = self
+            .receiver_noise_public_key(&counterparty, &lease.counterparty_receiver_path)
+            .await?;
+        paykit_lib::clear_encrypted_link_outbox(
+            &session_access.session,
+            &secret_key,
+            &remote_public_key,
+            &remote_noise_public_key,
+            &self.config.receiver_path,
+            &lease.counterparty_receiver_path,
+        )
+        .await?;
+        progress.write_path_cleared = true;
+        save_replacement_progress_with_lease(
+            &self.storage,
+            counterparty,
+            lease,
+            self.clock.now(),
+            progress,
+        )
+        .await
+    }
+
+    async fn start_replacement_link_handshake_with_claim(
+        &self,
+        counterparty: PubkyPublicKey,
+        role: EncryptedLinkHandshakeRole,
+        lease: PeerLinkOperationLease,
+    ) -> Result<LinkedPeerHandshakeReport> {
+        let (session_access, secret_key) = self.private_link_session_access().await?;
+        let remote_public_key = counterparty.to_public_key()?;
+        let remote_noise_public_key = self
+            .receiver_noise_public_key(&counterparty, &lease.counterparty_receiver_path)
+            .await?;
+        let handshake = match role {
+            EncryptedLinkHandshakeRole::Initiator => paykit_lib::initiate_encrypted_link(
+                session_access.session,
+                secret_key,
+                &remote_public_key,
+                &remote_noise_public_key,
+                &self.config.receiver_path,
+                &lease.counterparty_receiver_path,
+                session_access.outbox_client,
+            )?,
+            EncryptedLinkHandshakeRole::Responder => paykit_lib::accept_encrypted_link(
+                session_access.session,
+                secret_key,
+                &remote_public_key,
+                &remote_noise_public_key,
+                &self.config.receiver_path,
+                &lease.counterparty_receiver_path,
+                session_access.outbox_client,
+            )?,
+        };
+        save_link_handshake_state_with_lease(
+            &self.storage,
+            counterparty,
+            role,
+            handshake.serialize(),
+            lease,
+            self.clock.now(),
+        )
+        .await
     }
 
     async fn start_link_handshake(
@@ -791,23 +1130,6 @@ where
                 })
                 .await?
             {
-                if existing.link_snapshot.is_some() {
-                    save_linked_peer_state_with_lease(
-                        &self.storage,
-                        counterparty.clone(),
-                        LinkedPeerState::Linked,
-                        lease.clone(),
-                        self.clock.now(),
-                    )
-                    .await?;
-                    return Ok(LinkedPeerHandshakeReport {
-                        counterparty,
-                        counterparty_receiver_path: existing.counterparty_receiver_path,
-                        state: LinkedPeerState::Linked,
-                        generation: existing.generation,
-                        handshake_role: None,
-                    });
-                }
                 if existing.handshake_snapshot.is_some() {
                     if existing.handshake_role.is_none() {
                         let mark = mark_recovery_required_with_lease(
@@ -844,6 +1166,23 @@ where
                         state: LinkedPeerState::Linking,
                         generation: existing.generation,
                         handshake_role: existing.handshake_role,
+                    });
+                }
+                if existing.link_snapshot.is_some() {
+                    save_linked_peer_state_with_lease(
+                        &self.storage,
+                        counterparty.clone(),
+                        LinkedPeerState::Linked,
+                        lease.clone(),
+                        self.clock.now(),
+                    )
+                    .await?;
+                    return Ok(LinkedPeerHandshakeReport {
+                        counterparty,
+                        counterparty_receiver_path: existing.counterparty_receiver_path,
+                        state: LinkedPeerState::Linked,
+                        generation: existing.generation,
+                        handshake_role: None,
                     });
                 }
             }
@@ -966,8 +1305,43 @@ where
     }
 }
 
-fn link_handshake_error_requires_recovery(err: &PaykitSdkError) -> bool {
-    matches!(err, PaykitSdkError::RecoveryRequired { .. })
+fn classified_lib_restore_error(err: paykit_lib::PaykitError) -> PaykitSdkError {
+    if paykit_lib_error_requires_link_recovery(&err) {
+        PaykitSdkError::RecoveryRequired {
+            context: "Encrypted Link Handshake restore failed integrity or validation checks"
+                .into(),
+            source: None,
+        }
+    } else {
+        err.into()
+    }
+}
+
+fn replacement_should_run(
+    peer_state: Option<&LinkedPeerState>,
+    link_state: Option<&EncryptedLinkStateRecord>,
+) -> bool {
+    matches!(peer_state, Some(LinkedPeerState::RecoveryRequired))
+        || link_state.is_some_and(|state| {
+            state.replacement.peer_capability_confirmed
+                || state.replacement.drain_acknowledged
+                || state.replacement.write_path_cleared
+                || (state.link_snapshot.is_some() && state.handshake_snapshot.is_some())
+        })
+}
+
+fn replacement_recovery_report(
+    counterparty: PubkyPublicKey,
+    counterparty_receiver_path: PaykitReceiverPath,
+    link_state: Option<&EncryptedLinkStateRecord>,
+) -> LinkedPeerHandshakeReport {
+    LinkedPeerHandshakeReport {
+        counterparty,
+        counterparty_receiver_path,
+        state: LinkedPeerState::RecoveryRequired,
+        generation: link_state.map(|state| state.generation).unwrap_or_default(),
+        handshake_role: None,
+    }
 }
 
 fn clear_encrypted_link_state(
@@ -985,6 +1359,7 @@ fn clear_encrypted_link_state(
             handshake_role: None,
             generation: link_state.generation.saturating_add(1),
             checkpointed_at: now,
+            replacement: Default::default(),
         });
     }
 }

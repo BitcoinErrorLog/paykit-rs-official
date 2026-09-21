@@ -46,3 +46,35 @@ fn test_invalid_data_source_is_not_folded_into_protocol_string() {
         "InvalidData source leaked into Display/Debug: {rendered}"
     );
 }
+
+#[test]
+fn transport_and_not_found_never_require_link_recovery() {
+    assert!(!paykit_lib_error_requires_link_recovery(
+        &paykit_lib::PaykitError::Transport {
+            context: "homeserver timeout".into(),
+            source: anyhow::anyhow!("dial"),
+        }
+    ));
+    assert!(!paykit_lib_error_requires_link_recovery(
+        &paykit_lib::PaykitError::NotFound("missing slot".into())
+    ));
+    assert!(paykit_lib_error_requires_link_recovery(
+        &paykit_lib::PaykitError::InvalidData {
+            context: "aead".into(),
+            source: None,
+        }
+    ));
+    assert!(paykit_lib_error_requires_link_recovery(
+        &paykit_lib::PaykitError::Validation("bad snapshot".into())
+    ));
+    assert!(PaykitSdkError::Transport {
+        context: "retry".into(),
+        source: None,
+    }
+    .is_retryable_homeserver_failure());
+    assert!(PaykitSdkError::NotFound {
+        context: "gone".into(),
+        source: None,
+    }
+    .is_retryable_homeserver_failure());
+}

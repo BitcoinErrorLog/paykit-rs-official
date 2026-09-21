@@ -21,6 +21,7 @@ async fn test_restore_backup_state_rejects_malformed_link_snapshot() {
             handshake_role: None,
             generation: 0,
             checkpointed_at: timestamp(),
+            replacement: Default::default(),
         }],
         outbound_private_messages: Vec::new(),
         private_stream_items: Vec::new(),
@@ -51,6 +52,7 @@ fn test_recovery_required_restore_state_drops_link_snapshots() {
             handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
             generation: 7,
             checkpointed_at: timestamp(),
+            replacement: Default::default(),
         },
     )]);
 
@@ -95,6 +97,7 @@ fn test_restore_reconciliation_preserves_active_link_checkpoint() {
             handshake_role: None,
             generation: 7,
             checkpointed_at: timestamp(),
+            replacement: Default::default(),
         },
     )]);
 
@@ -121,6 +124,7 @@ fn test_restore_reconciliation_preserves_handshake_checkpoint() {
             handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
             generation: 7,
             checkpointed_at: timestamp(),
+            replacement: Default::default(),
         },
     )]);
 
@@ -162,6 +166,7 @@ fn test_restore_reconciliation_preserves_existing_recovery_required_peer() {
             handshake_role: None,
             generation: 7,
             checkpointed_at: timestamp(),
+            replacement: Default::default(),
         },
     )]);
 
@@ -203,6 +208,7 @@ fn test_restore_reconciliation_marks_missing_checkpoint_recovery_required() {
             handshake_role: None,
             generation: 7,
             checkpointed_at: timestamp(),
+            replacement: Default::default(),
         },
     )]);
 

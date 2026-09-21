@@ -62,7 +62,7 @@ where
         Ok(reports)
     }
 
-    async fn receive_private_messages_with_claim(
+    pub(super) async fn receive_private_messages_with_claim(
         &self,
         counterparty: PubkyPublicKey,
         lease: PeerLinkOperationLease,
@@ -81,6 +81,14 @@ where
                 context: format!("no Encrypted Link state for counterparty {counterparty}"),
                 source: None,
             })?;
+        let recovering = self
+            .storage
+            .transaction(|tx| {
+                Ok(tx
+                    .linked_peer(&counterparty, &lease.counterparty_receiver_path)
+                    .is_some_and(|peer| peer.state == LinkedPeerState::RecoveryRequired))
+            })
+            .await?;
         let Some(snapshot_bytes) = stored_link_state.link_snapshot.as_ref() else {
             let now = self.clock.now();
             let mark = mark_recovery_required_with_lease(
@@ -108,22 +116,24 @@ where
         let snapshot = match paykit_lib::EncryptedLinkSnapshot::deserialize(snapshot_bytes) {
             Ok(snapshot) => snapshot,
             Err(err) => {
-                let now = self.clock.now();
-                let mark = mark_recovery_required_with_lease(
-                    &self.storage,
-                    counterparty.clone(),
-                    lease.clone(),
-                    now,
-                )
-                .await?;
-                let _ = self
-                    .publish_local_recovery_marker_with_session(
-                        &counterparty,
-                        &stored_link_state.counterparty_receiver_path,
-                        &session_access,
-                        mark.new_episode,
+                if paykit_lib_error_requires_link_recovery(&err) {
+                    let now = self.clock.now();
+                    let mark = mark_recovery_required_with_lease(
+                        &self.storage,
+                        counterparty.clone(),
+                        lease.clone(),
+                        now,
                     )
-                    .await;
+                    .await?;
+                    let _ = self
+                        .publish_local_recovery_marker_with_session(
+                            &counterparty,
+                            &stored_link_state.counterparty_receiver_path,
+                            &session_access,
+                            mark.new_episode,
+                        )
+                        .await;
+                }
                 return Err(err.into());
             }
         };
@@ -141,22 +151,24 @@ where
         {
             Ok(link) => link,
             Err(err) => {
-                let now = self.clock.now();
-                let mark = mark_recovery_required_with_lease(
-                    &self.storage,
-                    counterparty.clone(),
-                    lease.clone(),
-                    now,
-                )
-                .await?;
-                let _ = self
-                    .publish_local_recovery_marker_with_session(
-                        &counterparty,
-                        &stored_link_state.counterparty_receiver_path,
-                        &session_access,
-                        mark.new_episode,
+                if paykit_lib_error_requires_link_recovery(&err) {
+                    let now = self.clock.now();
+                    let mark = mark_recovery_required_with_lease(
+                        &self.storage,
+                        counterparty.clone(),
+                        lease.clone(),
+                        now,
                     )
-                    .await;
+                    .await?;
+                    let _ = self
+                        .publish_local_recovery_marker_with_session(
+                            &counterparty,
+                            &stored_link_state.counterparty_receiver_path,
+                            &session_access,
+                            mark.new_episode,
+                        )
+                        .await;
+                }
                 return Err(err.into());
             }
         };
@@ -184,14 +196,32 @@ where
             Err(err) => return Err(err.into()),
         };
         let now = self.clock.now();
+        let replacement = if recovering {
+            ReplacementHandshakeProgress {
+                drain_acknowledged: true,
+                write_path_cleared: stored_link_state.replacement.write_path_cleared,
+                peer_capability_confirmed: stored_link_state.replacement.peer_capability_confirmed,
+            }
+        } else {
+            ReplacementHandshakeProgress::default()
+        };
         let next_link_state = EncryptedLinkStateRecord {
             counterparty: counterparty.clone(),
             counterparty_receiver_path: stored_link_state.counterparty_receiver_path.clone(),
             link_snapshot: Some(link.serialize()),
-            handshake_snapshot: None,
-            handshake_role: None,
+            handshake_snapshot: if recovering {
+                stored_link_state.handshake_snapshot.clone()
+            } else {
+                None
+            },
+            handshake_role: if recovering {
+                stored_link_state.handshake_role
+            } else {
+                None
+            },
             generation: stored_link_state.generation.saturating_add(1),
             checkpointed_at: now,
+            replacement,
         };
 
         persist_private_stream_batch_with_link_lease(

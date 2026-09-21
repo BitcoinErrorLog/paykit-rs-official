@@ -11,7 +11,8 @@ pub use in_memory::{run_storage_state_transaction, InMemoryStorage};
 pub use records::{
     EncryptedLinkStateRecord, EventDedupRecord, LinkedPeerRecord, NewOutboundPrivateMessage,
     NewPrivateStreamItem, OutboundPrivateMessageRecord, PaymentEndpointReservationRecord,
-    PeerLinkOperationLease, PrivateStreamItemRecord, PublicEndpointRecord, StorageState,
+    PeerLinkOperationLease, PrivateStreamItemRecord, PublicEndpointRecord,
+    ReplacementHandshakeProgress, StorageState,
 };
 
 pub(crate) use queue::outbound_private_queue_head_is_claimable;
