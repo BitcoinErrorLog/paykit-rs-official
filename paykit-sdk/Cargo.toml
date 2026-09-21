@@ -44,3 +44,5 @@ getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] 
 getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 uuid = { version = "1", features = ["js"] }
 reqwest = { version = "0.13", default-features = false, features = ["stream"] }
+# SystemClock uses Utc::now(); without wasmbind chrono panics on wasm32.
+chrono = { version = "0.4.44", default-features = false, features = ["clock", "serde", "std", "wasmbind"] }

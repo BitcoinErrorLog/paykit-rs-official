@@ -39,6 +39,20 @@ pub use session::*;
 
 use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console, js_name = error)]
+    fn console_error(s: &str);
+}
+
+/// Install a panic hook so Chromium shows the Rust panic instead of `unreachable`.
+#[wasm_bindgen(start)]
+pub fn wasm_start() {
+    std::panic::set_hook(Box::new(|info| {
+        console_error(&format!("paykit-wasm panic: {info}"));
+    }));
+}
+
 /// Maximum plaintext size of one Private Application Message, in bytes.
 ///
 /// This is `pubky_noise`'s fixed message buffer (1000 bytes). JSON envelope

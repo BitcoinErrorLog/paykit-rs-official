@@ -86,7 +86,7 @@ async function newHarnessPage(context, label) {
   const page = await context.newPage();
   page.on("console", (msg) => {
     const type = msg.type();
-    if (type === "error" || type === "warning") {
+    if (type === "error" || type === "warning" || type === "log") {
       console.error(`[${label} console.${type}] ${msg.text()}`);
     }
   });
@@ -120,13 +120,17 @@ async function constructManagedSdk(page, receiverPath) {
   return page.evaluate(async (receiverPath) => {
     const p = window.paykit;
     const s = window.state;
-    s.managedSdk = new p.PaykitSdkHandle(
-      s.session,
-      s.client,
-      s.noiseSecret,
-      receiverPath,
-    );
-    return await s.managedSdk.initialize();
+    try {
+      s.managedSdk = new p.PaykitSdkHandle(
+        s.session,
+        s.client,
+        s.noiseSecret,
+        receiverPath,
+      );
+      return await s.managedSdk.initialize();
+    } catch (err) {
+      throw new Error(`PaykitSdkHandle initialize failed: ${err}`);
+    }
   }, receiverPath);
 }
 

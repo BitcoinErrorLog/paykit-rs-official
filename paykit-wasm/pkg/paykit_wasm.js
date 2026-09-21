@@ -1594,6 +1594,13 @@ export function signOutSession(session) {
     return ret;
 }
 
+/**
+ * Install a panic hook so Chromium shows the Rust panic instead of `unreachable`.
+ */
+export function wasm_start() {
+    wasm.wasm_start();
+}
+
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -1723,6 +1730,9 @@ function __wbg_get_imports() {
             const ret = arg0.entries();
             return ret;
         },
+        __wbg_error_50a6655a285d4670: function(arg0, arg1) {
+            console.error(getStringFromWasm0(arg0, arg1));
+        },
         __wbg_fetch_3f39346b50886803: function(arg0, arg1) {
             const ret = arg0.fetch(arg1);
             return ret;
@@ -1743,6 +1753,10 @@ function __wbg_get_imports() {
         __wbg_getRandomValues_d49329ff89a07af1: function() { return handleError(function (arg0, arg1) {
             globalThis.crypto.getRandomValues(getArrayU8FromWasm0(arg0, arg1));
         }, arguments); },
+        __wbg_getTime_c3af35594e283356: function(arg0) {
+            const ret = arg0.getTime();
+            return ret;
+        },
         __wbg_get_94f5fc088edd3138: function(arg0, arg1) {
             const ret = arg0[arg1 >>> 0];
             return ret;
@@ -1805,6 +1819,10 @@ function __wbg_get_imports() {
         }, arguments); },
         __wbg_msCrypto_bd5a034af96bcba6: function(arg0) {
             const ret = arg0.msCrypto;
+            return ret;
+        },
+        __wbg_new_0_e649c99e7382313f: function() {
+            const ret = new Date();
             return ret;
         },
         __wbg_new_1d96678aaacca32e: function(arg0) {
@@ -2038,12 +2056,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1743, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1744, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_6f82f4e38fb734b8___convert__closures_____invoke___wasm_bindgen_6f82f4e38fb734b8___JsValue__core_ed718c3d60ebd546___result__Result_____wasm_bindgen_6f82f4e38fb734b8___JsError___true_);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1518, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1519, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_6f82f4e38fb734b8___convert__closures_____invoke_______true_);
             return ret;
         },
