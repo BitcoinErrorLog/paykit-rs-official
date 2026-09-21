@@ -21,6 +21,7 @@ mod keys;
 mod link;
 mod marker;
 mod memory;
+mod payments;
 #[cfg(target_arch = "wasm32")]
 mod sdk;
 #[cfg(target_arch = "wasm32")]
@@ -31,6 +32,7 @@ pub use keys::*;
 pub use link::*;
 pub use marker::*;
 pub use memory::*;
+pub use payments::*;
 #[cfg(target_arch = "wasm32")]
 pub use sdk::*;
 pub use session::*;
