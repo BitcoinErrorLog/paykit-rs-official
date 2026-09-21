@@ -118,6 +118,7 @@ impl fmt::Debug for PubkySessionBootstrapResult {
 
 impl PubkySessionBootstrapResult {
     /// Export the bearer secret token used to restore this Pubky session later.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn export_session_secret(&self) -> PubkySessionSecret {
         PubkySessionSecret::new(self.access.session.export_secret())
     }
@@ -251,6 +252,7 @@ impl PubkySessionBootstrap {
     /// Pass the same persisted receiver Noise key returned with the original
     /// session access. Generating a replacement rotates the public key and
     /// invalidates existing private path and Encrypted Link state.
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn import_session(
         &self,
         session_secret: &str,
