@@ -1,17 +1,18 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use paykit_sdk::storage::LinkedPeerRecord;
 use paykit_sdk::{
     EncryptedLinkHandshakeRole, EncryptedLinkRecoveryMarkerReport, InitializationReport,
-    LinkedPeerHandshakeReport, LinkedPeerRecord, LinkedPeerState, PaykitReceiverPath, PaykitSdk,
-    PaykitSdkConfig, PaykitSdkError, PaymentAdapter, PubkyPublicKey, PubkySessionAccess,
-    PubkySessionProvider, ReceiverNoiseSecretKey,
+    LinkedPeerHandshakeReport, LinkedPeerState, PaykitReceiverPath, PaykitSdk, PaykitSdkConfig,
+    PaykitSdkError, PaymentAdapter, PubkyPublicKey, PubkySessionAccess, PubkySessionProvider,
+    ReceiverNoiseSecretKey,
 };
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
 use crate::{
-    error::{js_err, js_err_msg},
+    error::js_err,
     keys::secret_key_from_slice,
     sdk_storage::{IndexedDbBlobStore, WasmSdkStorage},
     session::{PubkyClient, SessionHandle},
@@ -80,7 +81,7 @@ impl PaymentAdapter for WasmNoopPaymentAdapter {}
 /// revision-checked IndexedDB blob keyed by the authenticated Pubky owner.
 #[wasm_bindgen]
 pub struct PaykitSdkHandle {
-    runtime: WasmSdkRuntime,
+    runtime: Arc<WasmSdkRuntime>,
     blob_store: IndexedDbBlobStore,
 }
 
@@ -101,10 +102,8 @@ impl PaykitSdkHandle {
     ) -> Result<PaykitSdkHandle, JsValue> {
         let receiver_path = PaykitReceiverPath::new(receiver_path)
             .map_err(|err| js_err("invalid local receiver path", err))?;
-        let receiver_noise_secret_key = ReceiverNoiseSecretKey::new(
-            secret_key_from_slice(receiver_noise_secret_key)
-                .map_err(|err| js_err("invalid receiver Noise key", err))?,
-        );
+        let receiver_noise_secret_key =
+            ReceiverNoiseSecretKey::new(secret_key_from_slice(receiver_noise_secret_key)?);
         let access = PubkySessionAccess {
             session: session.inner.clone(),
             outbox_client: client.inner.clone(),
@@ -125,16 +124,16 @@ impl PaykitSdkHandle {
         .map_err(|err| js_err("create managed Paykit SDK", err))?;
 
         Ok(Self {
-            runtime,
+            runtime: Arc::new(runtime),
             blob_store,
         })
     }
 
     /// Initialize or refresh the persisted SDK identity state.
     pub fn initialize(&self) -> js_sys::Promise {
+        let runtime = Arc::clone(&self.runtime);
         future_to_promise(async move {
-            let report = self
-                .runtime
+            let report = runtime
                 .initialize()
                 .await
                 .map_err(|err| js_err("initialize managed Paykit SDK", err))?;
@@ -157,9 +156,9 @@ impl PaykitSdkHandle {
     ) -> Result<js_sys::Promise, JsValue> {
         let counterparty = parse_public_key(counterparty)?;
         let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
         Ok(future_to_promise(async move {
-            let report = self
-                .runtime
+            let report = runtime
                 .ensure_link_with_peer(counterparty, counterparty_receiver_path, max_advance_steps)
                 .await
                 .map_err(|err| js_err("ensure managed Encrypted Link", err))?;
@@ -179,9 +178,9 @@ impl PaykitSdkHandle {
     ) -> Result<js_sys::Promise, JsValue> {
         let counterparty = parse_public_key(counterparty)?;
         let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
         Ok(future_to_promise(async move {
-            let report = self
-                .runtime
+            let report = runtime
                 .observe_encrypted_link_recovery_marker(counterparty, counterparty_receiver_path)
                 .await
                 .map_err(|err| js_err("observe Encrypted Link recovery marker", err))?;
@@ -198,9 +197,9 @@ impl PaykitSdkHandle {
     ) -> Result<js_sys::Promise, JsValue> {
         let counterparty = parse_public_key(counterparty)?;
         let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
         Ok(future_to_promise(async move {
-            let report = self
-                .runtime
+            let report = runtime
                 .publish_encrypted_link_recovery_marker(counterparty, counterparty_receiver_path)
                 .await
                 .map_err(|err| js_err("publish Encrypted Link recovery marker", err))?;
@@ -217,9 +216,9 @@ impl PaykitSdkHandle {
     ) -> Result<js_sys::Promise, JsValue> {
         let counterparty = parse_public_key(counterparty)?;
         let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
         Ok(future_to_promise(async move {
-            let report = self
-                .runtime
+            let report = runtime
                 .encrypted_link_recovery_marker_status(&counterparty, &counterparty_receiver_path)
                 .await
                 .map_err(|err| js_err("read Encrypted Link recovery marker status", err))?;
@@ -232,9 +231,9 @@ impl PaykitSdkHandle {
     /// List SDK-managed peer lifecycle records for UI state mapping.
     #[wasm_bindgen(js_name = linkedPeers)]
     pub fn linked_peers(&self) -> js_sys::Promise {
+        let runtime = Arc::clone(&self.runtime);
         future_to_promise(async move {
-            let peers = self
-                .runtime
+            let peers = runtime
                 .linked_peers()
                 .await
                 .map_err(|err| js_err("list managed Encrypted Link peers", err))?;
@@ -292,8 +291,7 @@ fn initialization_report_value(report: InitializationReport) -> JsValue {
             .identity
             .public_key
             .as_ref()
-            .map(ToString::to_string)
-            .map(JsValue::from_str)
+            .map(|value| JsValue::from_str(&value.to_string()))
             .unwrap_or(JsValue::UNDEFINED),
     );
     set(

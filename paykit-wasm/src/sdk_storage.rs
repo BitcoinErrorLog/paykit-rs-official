@@ -219,8 +219,9 @@ impl StorageAdapter for WasmSdkStorage {
     ) -> paykit_sdk::Result<Box<dyn Any + Send>> {
         let _guard = self.transaction_lock.lock().await;
         let snapshot = self.blob_store.load().await?;
-        let expected_revision = snapshot.as_ref().map(|snapshot| snapshot.revision.as_str());
+        let expected_revision = snapshot.as_ref().map(|snapshot| snapshot.revision.clone());
         let initial_state = snapshot
+            .as_ref()
             .map(|snapshot| decode_storage_state(&snapshot.blob))
             .transpose()?
             .unwrap_or_default();
@@ -229,7 +230,9 @@ impl StorageAdapter for WasmSdkStorage {
 
         if updated_state != initial_state {
             let encoded = encode_storage_state(&updated_state)?;
-            self.blob_store.save(&encoded, expected_revision).await?;
+            self.blob_store
+                .save(&encoded, expected_revision.as_deref())
+                .await?;
         }
 
         Ok(result)
