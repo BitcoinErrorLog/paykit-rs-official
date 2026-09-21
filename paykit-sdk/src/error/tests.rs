@@ -78,3 +78,26 @@ fn transport_and_not_found_never_require_link_recovery() {
     }
     .is_retryable_homeserver_failure());
 }
+
+#[test]
+fn restore_replay_transport_requires_link_recovery() {
+    let restore_replay = paykit_lib::PaykitError::Transport {
+        context: "failed to restore Encrypted Link: RestoreReplayError".into(),
+        source: anyhow::anyhow!("pubky-noise restore failed: RestoreReplayError"),
+    };
+    assert!(paykit_lib_error_requires_link_recovery(&restore_replay));
+    assert!(!PaykitSdkError::from(restore_replay).is_retryable_homeserver_failure());
+
+    let source_only = paykit_lib::PaykitError::Transport {
+        context: "failed to restore Encrypted Link".into(),
+        source: anyhow::anyhow!("RestoreReplayError"),
+    };
+    assert!(paykit_lib_error_requires_link_recovery(&source_only));
+
+    let timeout = paykit_lib::PaykitError::Transport {
+        context: "failed to restore Encrypted Link: timeout".into(),
+        source: anyhow::anyhow!("dial timed out"),
+    };
+    assert!(!paykit_lib_error_requires_link_recovery(&timeout));
+    assert!(PaykitSdkError::from(timeout).is_retryable_homeserver_failure());
+}

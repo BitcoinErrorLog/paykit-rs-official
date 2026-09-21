@@ -118,17 +118,42 @@ impl From<paykit_lib::PaykitError> for PaykitSdkError {
 }
 
 /// Integrity and validation failures justify Encrypted Link recovery.
-/// Transport and NotFound never do.
+/// Ordinary Transport and NotFound never do. paykit-lib wraps
+/// `RestoreReplayError` and non-retryable private send/receive as Transport;
+/// those are integrity failures, not homeserver retries.
 pub(crate) fn paykit_lib_error_requires_link_recovery(err: &paykit_lib::PaykitError) -> bool {
-    !matches!(
-        err,
-        paykit_lib::PaykitError::Transport { .. } | paykit_lib::PaykitError::NotFound(_)
-    )
+    match err {
+        paykit_lib::PaykitError::NotFound(_) => false,
+        paykit_lib::PaykitError::Transport { context, source } => {
+            err.is_non_retryable_private_send_error()
+                || err.is_non_retryable_private_receive_error()
+                || mentions_restore_replay(context, Some(source))
+        }
+        paykit_lib::PaykitError::InvalidData { .. } | paykit_lib::PaykitError::Validation(_) => {
+            true
+        }
+    }
+}
+
+fn mentions_restore_replay(context: &str, source: Option<&anyhow::Error>) -> bool {
+    if context.contains("RestoreReplayError") {
+        return true;
+    }
+    source.is_some_and(|err| {
+        err.to_string().contains("RestoreReplayError")
+            || format!("{err:?}").contains("RestoreReplayError")
+    })
 }
 
 impl PaykitSdkError {
     pub(crate) fn is_retryable_homeserver_failure(&self) -> bool {
-        matches!(self, Self::Transport { .. } | Self::NotFound { .. })
+        match self {
+            Self::Transport { context, source } => {
+                !mentions_restore_replay(context, source.as_ref())
+            }
+            Self::NotFound { .. } => true,
+            _ => false,
+        }
     }
 }
 
