@@ -231,14 +231,22 @@ pub(crate) fn classify_private_application_message(
     message: &PrivateApplicationMessage,
 ) -> PrivateStreamMessageClassification {
     let Some(kind) = message.known_kind() else {
+        let unknown_kind = message.version.is_some() && message.kind.is_some();
         return PrivateStreamMessageClassification {
-            status: if message.version.is_some() && message.kind.is_some() {
+            status: if unknown_kind {
                 PrivateStreamParseStatus::UnknownKind
             } else {
                 PrivateStreamParseStatus::InvalidJson
             },
             parse_error: message.invalid_utf8_error().map(str::to_owned),
-            event: None,
+            event: unknown_kind
+                .then(|| {
+                    opaque_event_header_from_raw_json(
+                        &message.raw_json,
+                        message.kind.as_deref().unwrap_or(""),
+                    )
+                })
+                .flatten(),
             receipt_access: None,
         };
     };
@@ -378,6 +386,60 @@ fn update_event_dedupe(
 pub(crate) fn payload_hash(raw_json: &str) -> String {
     let digest = Sha256::digest(raw_json.as_bytes());
     format!("sha256:{digest:x}")
+}
+
+fn opaque_event_header_from_raw_json(
+    raw_json: &str,
+    event_kind: &str,
+) -> Option<PrivateStreamEventHeader> {
+    let value: serde_json::Value = serde_json::from_str(raw_json).ok()?;
+    let event_id = value.get("event_id")?.as_str()?;
+    uuid::Uuid::parse_str(event_id).ok()?;
+    Some(PrivateStreamEventHeader {
+        event_id: event_id.to_owned(),
+        event_kind: event_kind.to_owned(),
+    })
+}
+
+/// Fetched private stream item for chat routing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrivateStreamItemView {
+    /// Assigned stream item id.
+    pub stream_item_id: u64,
+    /// Counterparty public key.
+    pub counterparty: PubkyPublicKey,
+    /// Counterparty receiver/runtime folder.
+    pub counterparty_receiver_path: PaykitReceiverPath,
+    /// Parsed Private Application Message kind.
+    pub kind: Option<String>,
+    /// Raw plaintext payload.
+    pub raw_json: String,
+    /// UUID Event ID extracted from JSON when present.
+    pub event_id: Option<String>,
+    /// Parse status.
+    pub parse_status: PrivateStreamParseStatus,
+    /// Known Paykit kind, when recognized.
+    pub known_paykit_kind: Option<String>,
+}
+
+impl PrivateStreamItemView {
+    pub(crate) fn from_record(record: crate::storage::PrivateStreamItemRecord) -> Self {
+        let event_id = opaque_event_header_from_raw_json(
+            &record.raw_json,
+            record.parsed_kind.as_deref().unwrap_or(""),
+        )
+        .map(|header| header.event_id);
+        Self {
+            stream_item_id: record.stream_item_id,
+            counterparty: record.counterparty,
+            counterparty_receiver_path: record.counterparty_receiver_path,
+            kind: record.parsed_kind,
+            raw_json: record.raw_json,
+            event_id,
+            parse_status: record.parse_status,
+            known_paykit_kind: record.known_paykit_kind,
+        }
+    }
 }
 
 #[cfg(test)]

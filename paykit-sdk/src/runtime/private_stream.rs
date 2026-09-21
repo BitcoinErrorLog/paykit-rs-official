@@ -62,6 +62,25 @@ where
         Ok(reports)
     }
 
+    /// Fetch persisted private stream items by id, preserving request order.
+    ///
+    /// Missing ids are omitted. Chat uses this to route unknown-kind persist
+    /// semantics after `receive_private_messages` returns ids.
+    pub async fn private_stream_items(
+        &self,
+        stream_item_ids: Vec<u64>,
+    ) -> Result<Vec<PrivateStreamItemView>> {
+        self.storage
+            .transaction(move |tx| {
+                Ok(stream_item_ids
+                    .into_iter()
+                    .filter_map(|stream_item_id| tx.private_stream_item(stream_item_id))
+                    .map(PrivateStreamItemView::from_record)
+                    .collect())
+            })
+            .await
+    }
+
     pub(super) async fn receive_private_messages_with_claim(
         &self,
         counterparty: PubkyPublicKey,
@@ -221,6 +240,7 @@ where
             },
             generation: stored_link_state.generation.saturating_add(1),
             checkpointed_at: now,
+            peer_receiver_noise_public_key: stored_link_state.peer_receiver_noise_public_key.clone(),
             replacement,
         };
 

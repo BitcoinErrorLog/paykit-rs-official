@@ -65,7 +65,7 @@ pub use domain::private_lists::{
 #[doc(inline)]
 pub use domain::private_stream::{
     EventIdConflict, PrivateStreamCounterpartyIntakeReport, PrivateStreamIntakeReport,
-    PrivateStreamParseStatus,
+    PrivateStreamItemView, PrivateStreamParseStatus,
 };
 #[doc(inline)]
 pub use domain::publication::PublicationStatus;

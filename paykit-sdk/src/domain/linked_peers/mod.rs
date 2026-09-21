@@ -27,6 +27,30 @@ pub enum EncryptedLinkHandshakeRole {
     Responder,
 }
 
+/// Result of comparing a stored peer receiver-noise fingerprint to live
+/// `receiver.json`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PeerReceiverNoiseComparison {
+    /// Stored fingerprint matches the live receiver Noise public key.
+    Match,
+    /// Legacy snapshot has no fingerprint; capture the live key and stay Linked.
+    CaptureLive,
+    /// Peer re-enrolled a different receiver Noise key.
+    Mismatch,
+}
+
+/// Compare a stored peer receiver-noise fingerprint to a live value.
+pub(crate) fn compare_peer_receiver_noise(
+    stored: Option<&PubkyPublicKey>,
+    live: &PubkyPublicKey,
+) -> PeerReceiverNoiseComparison {
+    match stored {
+        Some(stored) if stored == live => PeerReceiverNoiseComparison::Match,
+        Some(_) => PeerReceiverNoiseComparison::Mismatch,
+        None => PeerReceiverNoiseComparison::CaptureLive,
+    }
+}
+
 /// Local relationship state for a counterparty.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -430,6 +454,7 @@ where
         handshake_snapshot,
         None,
         now,
+        None,
     )
     .await
 }
@@ -442,6 +467,7 @@ pub(crate) async fn save_link_handshake_state_with_lease<S>(
     handshake_snapshot: Vec<u8>,
     lease: PeerLinkOperationLease,
     now: DateTime<Utc>,
+    peer_receiver_noise_public_key: Option<PubkyPublicKey>,
 ) -> Result<LinkedPeerHandshakeReport>
 where
     S: StorageAdapter,
@@ -454,6 +480,7 @@ where
         handshake_snapshot,
         Some(lease),
         now,
+        peer_receiver_noise_public_key,
     )
     .await
 }
@@ -466,6 +493,7 @@ async fn save_link_handshake_state_inner<S>(
     handshake_snapshot: Vec<u8>,
     lease: Option<PeerLinkOperationLease>,
     now: DateTime<Utc>,
+    peer_receiver_noise_public_key: Option<PubkyPublicKey>,
 ) -> Result<LinkedPeerHandshakeReport>
 where
     S: StorageAdapter,
@@ -505,6 +533,11 @@ where
                 handshake_role: Some(handshake_role),
                 generation,
                 checkpointed_at: now,
+                peer_receiver_noise_public_key: peer_receiver_noise_public_key.or_else(|| {
+                    existing
+                        .as_ref()
+                        .and_then(|record| record.peer_receiver_noise_public_key.clone())
+                }),
                 replacement: existing
                     .as_ref()
                     .map(|record| record.replacement.clone())
@@ -663,6 +696,9 @@ where
                 handshake_role: Some(handshake.handshake_role),
                 generation: handshake.expected_generation.saturating_add(1),
                 checkpointed_at: handshake.now,
+                peer_receiver_noise_public_key: existing
+                    .as_ref()
+                    .and_then(|record| record.peer_receiver_noise_public_key.clone()),
                 replacement: existing
                     .as_ref()
                     .map(|record| record.replacement.clone())
@@ -719,6 +755,7 @@ where
                 handshake_role: None,
                 generation,
                 checkpointed_at: now,
+                peer_receiver_noise_public_key: None,
                 replacement: Default::default(),
             };
 
@@ -803,6 +840,9 @@ where
             peer.last_sync_at = Some(now);
             peer.failure_count = 0;
 
+            let stored_fingerprint = tx
+                .encrypted_link_state(&counterparty, &counterparty_receiver_path)
+                .and_then(|record| record.peer_receiver_noise_public_key);
             let link_state = EncryptedLinkStateRecord {
                 counterparty: counterparty.clone(),
                 counterparty_receiver_path: counterparty_receiver_path.clone(),
@@ -811,6 +851,7 @@ where
                 handshake_role: None,
                 generation: expected_generation.saturating_add(1),
                 checkpointed_at: now,
+                peer_receiver_noise_public_key: stored_fingerprint,
                 replacement: Default::default(),
             };
 
@@ -854,6 +895,66 @@ where
             link_state.checkpointed_at = now;
             tx.save_encrypted_link_state(link_state);
             Ok(())
+        })
+        .await
+}
+
+/// Capture a live peer receiver-noise fingerprint without touching snapshots.
+pub(crate) async fn save_peer_receiver_noise_fingerprint_with_lease<S>(
+    storage: &S,
+    counterparty: PubkyPublicKey,
+    lease: PeerLinkOperationLease,
+    now: DateTime<Utc>,
+    peer_receiver_noise_public_key: PubkyPublicKey,
+) -> Result<LinkedPeerHandshakeReport>
+where
+    S: StorageAdapter,
+{
+    storage
+        .transaction(move |tx| {
+            require_peer_link_operation_lease(tx, &lease)?;
+            let Some(mut link_state) =
+                tx.encrypted_link_state(&counterparty, &lease.counterparty_receiver_path)
+            else {
+                return Err(PaykitSdkError::RecoveryRequired {
+                    context: format!(
+                        "no Encrypted Link state for fingerprint capture on {counterparty}"
+                    ),
+                    source: None,
+                });
+            };
+            if link_state.link_snapshot.is_none() {
+                return Err(PaykitSdkError::RecoveryRequired {
+                    context: format!(
+                        "no Encrypted Link snapshot for fingerprint capture on {counterparty}"
+                    ),
+                    source: None,
+                });
+            }
+            link_state.peer_receiver_noise_public_key = Some(peer_receiver_noise_public_key);
+            link_state.checkpointed_at = now;
+            let mut peer = tx
+                .linked_peer(&counterparty, &lease.counterparty_receiver_path)
+                .unwrap_or_else(|| {
+                    default_linked_peer(
+                        counterparty.clone(),
+                        lease.counterparty_receiver_path.clone(),
+                    )
+                });
+            ensure_not_blocked(&peer)?;
+            peer.state = LinkedPeerState::Linked;
+            peer.last_sync_at = Some(now);
+            peer.failure_count = 0;
+            tx.save_linked_peer(peer);
+            let report = LinkedPeerHandshakeReport {
+                counterparty,
+                counterparty_receiver_path: link_state.counterparty_receiver_path.clone(),
+                state: LinkedPeerState::Linked,
+                generation: link_state.generation,
+                handshake_role: None,
+            };
+            tx.save_encrypted_link_state(link_state);
+            Ok(report)
         })
         .await
 }

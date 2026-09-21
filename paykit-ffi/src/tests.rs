@@ -264,6 +264,7 @@ fn test_storage_state_blob_round_trips_private_sync_records() {
             handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
             generation: 1,
             checkpointed_at: now,
+            peer_receiver_noise_public_key: None,
             replacement: Default::default(),
         },
     )]);

@@ -17,6 +17,7 @@ async fn test_export_backup_state_redacts_debug() {
                         handshake_role: None,
                         generation: 0,
                         checkpointed_at: timestamp(),
+                        peer_receiver_noise_public_key: None,
                         replacement: Default::default(),
                     });
                     tx.insert_outbound_private_message(crate::storage::NewOutboundPrivateMessage::new(
@@ -104,6 +105,7 @@ async fn test_restore_backup_state_marks_missing_link_checkpoint_recovery_requir
             handshake_role: None,
             generation: 0,
             checkpointed_at: timestamp(),
+            peer_receiver_noise_public_key: None,
             replacement: Default::default(),
         }],
         outbound_private_messages: Vec::new(),

@@ -126,6 +126,7 @@ async fn test_private_queue_readiness_rejects_linking_peer_without_handshake_rol
                     handshake_role: None,
                     generation: 0,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(())
@@ -224,6 +225,7 @@ async fn test_ensure_link_recovery_required_ignores_stale_link_snapshot() {
                     handshake_role: None,
                     generation: 4,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(())
@@ -305,6 +307,7 @@ async fn test_ensure_link_recovery_required_ignores_stale_handshake_snapshot() {
                     handshake_role: Some(EncryptedLinkHandshakeRole::Responder),
                     generation: 4,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(())
@@ -386,6 +389,7 @@ async fn test_advance_link_handshake_rejects_recovery_required_peer() {
                     handshake_role: None,
                     generation: 4,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(())
@@ -435,6 +439,7 @@ async fn test_advance_link_handshake_preserves_unusable_link_state_without_sessi
                     handshake_role: None,
                     generation: 0,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(())
@@ -479,6 +484,7 @@ async fn test_advance_link_handshake_preserves_unusable_handshake_snapshot_witho
                     handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
                     generation: 0,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(())
@@ -523,6 +529,7 @@ async fn test_advance_link_handshake_preserves_unusable_handshake_metadata_witho
                     handshake_role: None,
                     generation: 0,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(())
@@ -665,6 +672,7 @@ async fn test_ensure_crash_after_save_before_clear_does_not_clear_without_sessio
                     handshake_role: Some(EncryptedLinkHandshakeRole::Responder),
                     generation: 4,
                     checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
                     replacement: crate::storage::ReplacementHandshakeProgress {
                         drain_acknowledged: true,
                         write_path_cleared: false,
@@ -751,10 +759,37 @@ async fn seed_recovery_required_snapshot(
                 handshake_role: None,
                 generation: 3,
                 checkpointed_at: FixedClock.now(),
+                peer_receiver_noise_public_key: None,
                 replacement: Default::default(),
             });
             Ok(())
         })
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn test_ensure_linked_snapshot_does_not_short_circuit_without_receiver_lookup() {
+    let storage = InMemoryStorage::new();
+    let counterparty = PubkyPublicKey::from_public_key(&pubky::Keypair::random().public_key());
+    seed_initialized_identity_and_link(&storage, counterparty.clone()).await;
+    let sdk = PaykitSdk::with_clock(
+        storage.clone(),
+        TestPubkySessionProvider { session: None },
+        TestPaymentAdapter,
+        PaykitSdkConfig::default(),
+        FixedClock,
+    );
+
+    let result = sdk
+        .ensure_link_with_peer(counterparty.clone(), receiver_path(), 0)
+        .await;
+
+    assert!(matches!(result, Err(PaykitSdkError::Identity { .. })));
+    let link_state = crate::load_encrypted_link_state(&storage, &counterparty, &receiver_path())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(link_state.link_snapshot, Some(vec![1, 2, 3]));
+    assert_eq!(link_state.peer_receiver_noise_public_key, None);
 }

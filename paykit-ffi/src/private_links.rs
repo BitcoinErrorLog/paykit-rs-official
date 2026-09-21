@@ -5,7 +5,8 @@ use paykit_sdk::{
     EncryptedLinkHandshakeRole, EncryptedLinkRecoveryMarkerReport, EventIdConflict,
     LinkedPeerHandshakeReport, LinkedPeerState, OutboundPrivateCounterpartySendReport,
     OutboundPrivateSendFailure, OutboundPrivateSendReport, PrivateStreamCounterpartyIntakeReport,
-    PrivateStreamIntakeReport, RecoveryMarkerPublishFailure, ReservationCleanupFailure,
+    PrivateStreamIntakeReport, PrivateStreamItemView, PrivateStreamParseStatus,
+    RecoveryMarkerPublishFailure, ReservationCleanupFailure,
 };
 
 use crate::{
@@ -166,6 +167,42 @@ pub struct FfiPrivateStreamIntakeReport {
     pub stream_item_ids: Vec<u64>,
     /// Event ID conflicts found while updating dedupe records.
     pub event_conflicts: Vec<FfiEventIdConflict>,
+}
+
+/// Parse status for one received Private Application Message.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FfiPrivateStreamParseStatus {
+    /// Message parsed as a valid recognized Paykit message.
+    Valid,
+    /// Message kind is recognized, but payload is malformed.
+    MalformedRecognized,
+    /// Message has a valid private header but unknown kind.
+    UnknownKind,
+    /// Message is not valid JSON or does not have a usable private header.
+    InvalidJson,
+    /// Unknown future variant.
+    Unknown,
+}
+
+/// Fetched private stream item for chat routing.
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiPrivateStreamItem {
+    /// Assigned stream item id.
+    pub stream_item_id: u64,
+    /// Counterparty public key.
+    pub counterparty: String,
+    /// Counterparty Paykit receiver path.
+    pub counterparty_receiver_path: String,
+    /// Parsed Private Application Message kind.
+    pub kind: Option<String>,
+    /// Raw plaintext payload.
+    pub raw_json: String,
+    /// UUID Event ID extracted from JSON when present.
+    pub event_id: Option<String>,
+    /// Parse status.
+    pub parse_status: FfiPrivateStreamParseStatus,
+    /// Known Paykit kind, when recognized.
+    pub known_paykit_kind: Option<String>,
 }
 
 /// Summary for receiving private messages from one counterparty.
@@ -404,6 +441,36 @@ impl FfiPaykitSdk {
             .map_err(Into::into)
     }
 
+    /// Queue an app-defined Private Application Message without Paykit kind parse.
+    pub async fn enqueue_opaque_private_application_message_json(
+        &self,
+        counterparty: String,
+        counterparty_receiver_path: String,
+        raw_json: String,
+    ) -> Result<u64, PaykitFfiError> {
+        self.runtime
+            .enqueue_opaque_private_application_message_json(
+                parse_public_key(counterparty)?,
+                parse_receiver_path(counterparty_receiver_path)?,
+                raw_json,
+            )
+            .await
+            .map(|record| record.outbound_message_id)
+            .map_err(Into::into)
+    }
+
+    /// Fetch persisted private stream items by id, preserving request order.
+    pub async fn private_stream_items(
+        &self,
+        stream_item_ids: Vec<u64>,
+    ) -> Result<Vec<FfiPrivateStreamItem>, PaykitFfiError> {
+        self.runtime
+            .private_stream_items(stream_item_ids)
+            .await
+            .map(|items| items.into_iter().map(Into::into).collect())
+            .map_err(Into::into)
+    }
+
     /// Send queued outbound private messages for one counterparty in order.
     pub async fn process_outbound_private_messages(
         &self,
@@ -590,6 +657,33 @@ impl From<PrivateStreamIntakeReport> for FfiPrivateStreamIntakeReport {
             receive_batch_id: value.receive_batch_id,
             stream_item_ids: value.stream_item_ids,
             event_conflicts: value.event_conflicts.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<PrivateStreamParseStatus> for FfiPrivateStreamParseStatus {
+    fn from(value: PrivateStreamParseStatus) -> Self {
+        match value {
+            PrivateStreamParseStatus::Valid => Self::Valid,
+            PrivateStreamParseStatus::MalformedRecognized => Self::MalformedRecognized,
+            PrivateStreamParseStatus::UnknownKind => Self::UnknownKind,
+            PrivateStreamParseStatus::InvalidJson => Self::InvalidJson,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl From<PrivateStreamItemView> for FfiPrivateStreamItem {
+    fn from(value: PrivateStreamItemView) -> Self {
+        Self {
+            stream_item_id: value.stream_item_id,
+            counterparty: app_public_key(&value.counterparty),
+            counterparty_receiver_path: value.counterparty_receiver_path.to_string(),
+            kind: value.kind,
+            raw_json: value.raw_json,
+            event_id: value.event_id,
+            parse_status: value.parse_status.into(),
+            known_paykit_kind: value.known_paykit_kind,
         }
     }
 }

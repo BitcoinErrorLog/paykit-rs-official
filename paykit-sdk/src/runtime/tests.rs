@@ -24,9 +24,10 @@ use crate::{
     domain::private_stream::persist_private_stream_batch,
     storage::{
         EncryptedLinkStateRecord, EventDedupRecord, InMemoryStorage, LinkedPeerRecord,
-        NewOutboundPrivateMessage, PublicEndpointRecord,
+        NewOutboundPrivateMessage, NewPrivateStreamItem, NewPrivateStreamItemDetails,
+        PublicEndpointRecord,
     },
-    EventIdConflict, OutboundPrivateMessageStatus, PubkySessionAccess,
+    EventIdConflict, OutboundPrivateMessageStatus, PrivateStreamParseStatus, PubkySessionAccess,
 };
 use paykit_lib::PrivateApplicationMessage;
 
@@ -535,6 +536,7 @@ async fn seed_initialized_identity_and_link(
                 handshake_role: None,
                 generation: 0,
                 checkpointed_at: FixedClock.now(),
+                peer_receiver_noise_public_key: None,
                 replacement: Default::default(),
             });
             Ok(())
@@ -581,6 +583,7 @@ async fn seed_initialized_identity_and_handshake(
                 handshake_role: Some(EncryptedLinkHandshakeRole::Initiator),
                 generation: 0,
                 checkpointed_at: FixedClock.now(),
+                peer_receiver_noise_public_key: None,
                 replacement: Default::default(),
             });
             Ok(())

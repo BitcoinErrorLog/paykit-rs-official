@@ -181,6 +181,11 @@ pub struct EncryptedLinkStateRecord {
     pub generation: u64,
     /// Last checkpoint time.
     pub checkpointed_at: DateTime<Utc>,
+    /// Peer Paykit receiver Noise public key observed when this snapshot was
+    /// established. Compared on the Linked short-circuit; missing is a legacy
+    /// capture, mismatch is re-enrollment (not recovery, not a wipe).
+    #[serde(default)]
+    pub peer_receiver_noise_public_key: Option<PubkyPublicKey>,
     /// Replacement handshake progress for the current recovery episode.
     #[serde(default)]
     pub replacement: ReplacementHandshakeProgress,
@@ -207,6 +212,10 @@ impl fmt::Debug for EncryptedLinkStateRecord {
             .field("handshake_role", &self.handshake_role)
             .field("generation", &self.generation)
             .field("checkpointed_at", &self.checkpointed_at)
+            .field(
+                "peer_receiver_noise_public_key",
+                &self.peer_receiver_noise_public_key,
+            )
             .field("replacement", &self.replacement)
             .finish()
     }

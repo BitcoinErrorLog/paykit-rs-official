@@ -404,6 +404,7 @@ where
                     handshake_role: None,
                     generation,
                     checkpointed_at: now,
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 Ok(LinkedPeerHandshakeReport {
@@ -519,21 +520,12 @@ where
                     }
                 }
                 (_, Some(state)) if state.link_snapshot.is_some() => {
-                    save_linked_peer_state_with_lease(
-                        &self.storage,
+                    self.confirm_linked_peer_receiver_noise(
                         counterparty.clone(),
-                        LinkedPeerState::Linked,
+                        state,
                         lease.clone(),
-                        self.clock.now(),
                     )
-                    .await?;
-                    LinkedPeerHandshakeReport {
-                        counterparty: counterparty.clone(),
-                        counterparty_receiver_path: state.counterparty_receiver_path,
-                        state: LinkedPeerState::Linked,
-                        generation: state.generation,
-                        handshake_role: None,
-                    }
+                    .await?
                 }
                 _ => {
                     self.start_link_handshake_with_claim(counterparty.clone(), role, lease.clone())
@@ -627,21 +619,9 @@ where
         if stored_link_state.handshake_snapshot.is_none()
             && stored_link_state.link_snapshot.is_some()
         {
-            save_linked_peer_state_with_lease(
-                &self.storage,
-                counterparty.clone(),
-                LinkedPeerState::Linked,
-                lease.clone(),
-                self.clock.now(),
-            )
-            .await?;
-            return Ok(LinkedPeerHandshakeReport {
-                counterparty: counterparty.clone(),
-                counterparty_receiver_path: stored_link_state.counterparty_receiver_path,
-                state: LinkedPeerState::Linked,
-                generation: stored_link_state.generation,
-                handshake_role: None,
-            });
+            return self
+                .confirm_linked_peer_receiver_noise(counterparty, stored_link_state, lease)
+                .await;
         }
 
         let Some(handshake_role) = stored_link_state.handshake_role else {
@@ -1081,6 +1061,7 @@ where
             handshake.serialize(),
             lease,
             self.clock.now(),
+            Some(PubkyPublicKey::from_public_key(&remote_noise_public_key)),
         )
         .await
     }
@@ -1169,21 +1150,9 @@ where
                     });
                 }
                 if existing.link_snapshot.is_some() {
-                    save_linked_peer_state_with_lease(
-                        &self.storage,
-                        counterparty.clone(),
-                        LinkedPeerState::Linked,
-                        lease.clone(),
-                        self.clock.now(),
-                    )
-                    .await?;
-                    return Ok(LinkedPeerHandshakeReport {
-                        counterparty,
-                        counterparty_receiver_path: existing.counterparty_receiver_path,
-                        state: LinkedPeerState::Linked,
-                        generation: existing.generation,
-                        handshake_role: None,
-                    });
+                    return self
+                        .confirm_linked_peer_receiver_noise(counterparty, existing, lease)
+                        .await;
                 }
             }
         }
@@ -1229,6 +1198,7 @@ where
             handshake.serialize(),
             lease,
             self.clock.now(),
+            Some(PubkyPublicKey::from_public_key(&remote_noise_public_key)),
         )
         .await
     }
@@ -1303,6 +1273,54 @@ where
         let secret_key = *session_access.receiver_noise_secret_key.as_bytes();
         Ok((session_access, secret_key))
     }
+
+    async fn confirm_linked_peer_receiver_noise(
+        &self,
+        counterparty: PubkyPublicKey,
+        state: EncryptedLinkStateRecord,
+        lease: PeerLinkOperationLease,
+    ) -> Result<LinkedPeerHandshakeReport> {
+        let live = PubkyPublicKey::from_public_key(
+            &self
+                .receiver_noise_public_key(&counterparty, &lease.counterparty_receiver_path)
+                .await?,
+        );
+        match compare_peer_receiver_noise(state.peer_receiver_noise_public_key.as_ref(), &live) {
+            PeerReceiverNoiseComparison::Mismatch => Err(PaykitSdkError::Policy {
+                context: format!(
+                    "peer receiver-noise fingerprint mismatch for {counterparty}; re-enrollment required"
+                ),
+                source: None,
+            }),
+            PeerReceiverNoiseComparison::CaptureLive => {
+                save_peer_receiver_noise_fingerprint_with_lease(
+                    &self.storage,
+                    counterparty,
+                    lease,
+                    self.clock.now(),
+                    live,
+                )
+                .await
+            }
+            PeerReceiverNoiseComparison::Match => {
+                save_linked_peer_state_with_lease(
+                    &self.storage,
+                    counterparty.clone(),
+                    LinkedPeerState::Linked,
+                    lease,
+                    self.clock.now(),
+                )
+                .await?;
+                Ok(LinkedPeerHandshakeReport {
+                    counterparty,
+                    counterparty_receiver_path: state.counterparty_receiver_path,
+                    state: LinkedPeerState::Linked,
+                    generation: state.generation,
+                    handshake_role: None,
+                })
+            }
+        }
+    }
 }
 
 fn classified_lib_restore_error(err: paykit_lib::PaykitError) -> PaykitSdkError {
@@ -1359,6 +1377,7 @@ fn clear_encrypted_link_state(
             handshake_role: None,
             generation: link_state.generation.saturating_add(1),
             checkpointed_at: now,
+            peer_receiver_noise_public_key: None,
             replacement: Default::default(),
         });
     }

@@ -459,6 +459,14 @@ impl StorageTransaction for StorageStateTransaction {
             .collect()
     }
 
+    fn private_stream_item(&self, stream_item_id: u64) -> Option<PrivateStreamItemRecord> {
+        self.state
+            .private_stream_items
+            .iter()
+            .find(|item| item.stream_item_id == stream_item_id)
+            .cloned()
+    }
+
     fn event_dedup_record(
         &self,
         counterparty: &PubkyPublicKey,

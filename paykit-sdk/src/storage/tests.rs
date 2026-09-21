@@ -188,6 +188,7 @@ fn test_sensitive_storage_debug_is_redacted() {
         handshake_role: None,
         generation: 0,
         checkpointed_at: timestamp(),
+        peer_receiver_noise_public_key: None,
         replacement: Default::default(),
     };
     let mut outbound = OutboundPrivateMessageRecord::from_new(
@@ -383,6 +384,7 @@ async fn test_receiver_path_scopes_peer_state_and_queue_claims() {
                     handshake_role: None,
                     generation: 0,
                     checkpointed_at: timestamp(),
+                    peer_receiver_noise_public_key: None,
                     replacement: Default::default(),
                 });
                 tx.save_payment_endpoint_reservation(

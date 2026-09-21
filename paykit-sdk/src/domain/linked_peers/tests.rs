@@ -1,7 +1,7 @@
 use chrono::{TimeZone, Utc};
 
 use super::*;
-use crate::storage::InMemoryStorage;
+use crate::storage::{EncryptedLinkStateRecord, InMemoryStorage};
 
 fn timestamp() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 6, 4, 12, 0, 0).unwrap()
@@ -517,6 +517,7 @@ async fn test_lease_checked_handshake_save_rejects_stale_lease() {
         vec![1, 2, 3],
         first_lease,
         timestamp() + chrono::Duration::seconds(12),
+        None,
     )
     .await;
 
@@ -606,4 +607,86 @@ async fn test_lease_checked_recovery_rejects_stale_lease() {
             .unwrap(),
         Some(active_lease)
     );
+}
+
+#[test]
+fn test_compare_peer_receiver_noise_match_capture_and_mismatch() {
+    let live = PubkyPublicKey::from_public_key(&pubky::Keypair::from_secret(&[3; 32]).public_key());
+    let other = PubkyPublicKey::from_public_key(&pubky::Keypair::from_secret(&[4; 32]).public_key());
+
+    assert_eq!(
+        compare_peer_receiver_noise(Some(&live), &live),
+        PeerReceiverNoiseComparison::Match
+    );
+    assert_eq!(
+        compare_peer_receiver_noise(None, &live),
+        PeerReceiverNoiseComparison::CaptureLive
+    );
+    assert_eq!(
+        compare_peer_receiver_noise(Some(&other), &live),
+        PeerReceiverNoiseComparison::Mismatch
+    );
+}
+
+#[tokio::test]
+async fn test_fingerprint_capture_keeps_snapshot_and_marks_linked() {
+    let storage = InMemoryStorage::new();
+    let counterparty = counterparty();
+    let fingerprint =
+        PubkyPublicKey::from_public_key(&pubky::Keypair::from_secret(&[9; 32]).public_key());
+    storage
+        .transaction({
+            let counterparty = counterparty.clone();
+            move |tx| {
+                tx.save_encrypted_link_state(EncryptedLinkStateRecord {
+                    counterparty: counterparty.clone(),
+                    counterparty_receiver_path: receiver_path(),
+                    link_snapshot: Some(vec![1, 2, 3]),
+                    handshake_snapshot: None,
+                    handshake_role: None,
+                    generation: 2,
+                    checkpointed_at: timestamp(),
+                    peer_receiver_noise_public_key: None,
+                    replacement: Default::default(),
+                });
+                Ok(())
+            }
+        })
+        .await
+        .unwrap();
+    let lease = storage
+        .transaction({
+            let counterparty = counterparty.clone();
+            move |tx| {
+                Ok(tx
+                    .claim_peer_link_operation(
+                        &counterparty,
+                        &receiver_path(),
+                        timestamp(),
+                        timestamp() + chrono::Duration::seconds(60),
+                    )
+                    .unwrap())
+            }
+        })
+        .await
+        .unwrap();
+
+    let report = save_peer_receiver_noise_fingerprint_with_lease(
+        &storage,
+        counterparty.clone(),
+        lease,
+        timestamp(),
+        fingerprint.clone(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(report.state, LinkedPeerState::Linked);
+    let link_state = load_encrypted_link_state(&storage, &counterparty, &receiver_path())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(link_state.link_snapshot, Some(vec![1, 2, 3]));
+    assert_eq!(link_state.peer_receiver_noise_public_key, Some(fingerprint));
+    assert_eq!(link_state.generation, 2);
 }

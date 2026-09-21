@@ -4,9 +4,11 @@ use async_trait::async_trait;
 use paykit_sdk::storage::LinkedPeerRecord;
 use paykit_sdk::{
     EncryptedLinkHandshakeRole, EncryptedLinkRecoveryMarkerReport, InitializationReport,
-    LinkedPeerHandshakeReport, LinkedPeerState, PaykitReceiverPath, PaykitSdk, PaykitSdkConfig,
-    PaykitSdkError, PaymentAdapter, PubkyPublicKey, PubkySessionAccess, PubkySessionProvider,
-    ReceiverNoiseSecretKey,
+    LinkedPeerHandshakeReport, LinkedPeerState, OutboundPrivateCounterpartySendReport,
+    OutboundPrivateSendReport, PaykitReceiverPath, PaykitSdk, PaykitSdkConfig, PaykitSdkError,
+    PaymentAdapter, PrivateStreamCounterpartyIntakeReport, PrivateStreamIntakeReport,
+    PrivateStreamItemView, PrivateStreamParseStatus, PubkyPublicKey, PubkySessionAccess,
+    PubkySessionProvider, ReceiverNoiseSecretKey,
 };
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
@@ -189,6 +191,104 @@ impl PaykitSdkHandle {
                 .map_err(|err| js_err("enqueue opaque private message", err))?;
             Ok(JsValue::from_f64(record.outbound_message_id as f64))
         }))
+    }
+
+    /// Receive and durably persist available private messages.
+    ///
+    /// Returns `{ receiveBatchId, streamItemIds, eventConflicts }`. Fetch
+    /// payloads with `privateStreamItems`.
+    #[wasm_bindgen(js_name = receivePrivateMessages)]
+    pub fn receive_private_messages(
+        &self,
+        counterparty: &str,
+        counterparty_receiver_path: &str,
+    ) -> Result<js_sys::Promise, JsValue> {
+        let counterparty = parse_public_key(counterparty)?;
+        let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
+        Ok(future_to_promise(async move {
+            let report = runtime
+                .receive_private_messages(counterparty, counterparty_receiver_path)
+                .await
+                .map_err(|err| js_err("receive private messages", err))?;
+            Ok(intake_report_value(report))
+        }))
+    }
+
+    /// Send queued outbound private messages for one counterparty in order.
+    #[wasm_bindgen(js_name = processOutboundPrivateMessages)]
+    pub fn process_outbound_private_messages(
+        &self,
+        counterparty: &str,
+        counterparty_receiver_path: &str,
+    ) -> Result<js_sys::Promise, JsValue> {
+        let counterparty = parse_public_key(counterparty)?;
+        let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
+        Ok(future_to_promise(async move {
+            let report = runtime
+                .process_outbound_private_messages(counterparty, counterparty_receiver_path)
+                .await
+                .map_err(|err| js_err("process outbound private messages", err))?;
+            Ok(outbound_send_report_value(report))
+        }))
+    }
+
+    /// Fetch persisted intake rows by id so chat can route unknown kinds.
+    #[wasm_bindgen(js_name = privateStreamItems)]
+    pub fn private_stream_items(&self, stream_item_ids: js_sys::Array) -> js_sys::Promise {
+        let mut ids = Vec::with_capacity(stream_item_ids.length() as usize);
+        for value in stream_item_ids.iter() {
+            if let Some(id) = value.as_f64() {
+                ids.push(id as u64);
+            }
+        }
+        let runtime = Arc::clone(&self.runtime);
+        future_to_promise(async move {
+            let items = runtime
+                .private_stream_items(ids)
+                .await
+                .map_err(|err| js_err("fetch private stream items", err))?;
+            let values = js_sys::Array::new();
+            for item in items {
+                values.push(&private_stream_item_value(item));
+            }
+            Ok(values.into())
+        })
+    }
+
+    /// Receive private messages from every locally Linked counterparty.
+    #[wasm_bindgen(js_name = receivePrivateMessagesFromLinkedPeers)]
+    pub fn receive_private_messages_from_linked_peers(&self) -> js_sys::Promise {
+        let runtime = Arc::clone(&self.runtime);
+        future_to_promise(async move {
+            let reports = runtime
+                .receive_private_messages_from_linked_peers()
+                .await
+                .map_err(|err| js_err("receive private messages from linked peers", err))?;
+            let values = js_sys::Array::new();
+            for report in reports {
+                values.push(&counterparty_intake_report_value(report));
+            }
+            Ok(values.into())
+        })
+    }
+
+    /// Send queued outbound private messages for every pending counterparty.
+    #[wasm_bindgen(js_name = processPendingPrivateMessages)]
+    pub fn process_pending_private_messages(&self) -> js_sys::Promise {
+        let runtime = Arc::clone(&self.runtime);
+        future_to_promise(async move {
+            let reports = runtime
+                .process_pending_private_messages()
+                .await
+                .map_err(|err| js_err("process pending private messages", err))?;
+            let values = js_sys::Array::new();
+            for report in reports {
+                values.push(&counterparty_send_report_value(report));
+            }
+            Ok(values.into())
+        })
     }
 
     /// Observe a counterparty recovery marker.
@@ -521,6 +621,186 @@ fn handshake_role_name(value: &EncryptedLinkHandshakeRole) -> &'static str {
     match value {
         EncryptedLinkHandshakeRole::Initiator => "Initiator",
         EncryptedLinkHandshakeRole::Responder => "Responder",
+        _ => "Unknown",
+    }
+}
+
+fn intake_report_value(report: PrivateStreamIntakeReport) -> JsValue {
+    let object = js_sys::Object::new();
+    set(
+        &object,
+        "receiveBatchId",
+        &JsValue::from_f64(report.receive_batch_id as f64),
+    );
+    let ids = js_sys::Array::new();
+    for id in report.stream_item_ids {
+        ids.push(&JsValue::from_f64(id as f64));
+    }
+    set(&object, "streamItemIds", &ids.into());
+    let conflicts = js_sys::Array::new();
+    for conflict in report.event_conflicts {
+        let item = js_sys::Object::new();
+        set(&item, "eventId", &JsValue::from_str(&conflict.event_id));
+        set(
+            &item,
+            "firstStreamItemId",
+            &JsValue::from_f64(conflict.first_stream_item_id as f64),
+        );
+        set(
+            &item,
+            "conflictingStreamItemId",
+            &JsValue::from_f64(conflict.conflicting_stream_item_id as f64),
+        );
+        conflicts.push(&item.into());
+    }
+    set(&object, "eventConflicts", &conflicts.into());
+    object.into()
+}
+
+fn counterparty_intake_report_value(report: PrivateStreamCounterpartyIntakeReport) -> JsValue {
+    let object = js_sys::Object::new();
+    set(
+        &object,
+        "counterparty",
+        &JsValue::from_str(&report.counterparty.to_string()),
+    );
+    set(
+        &object,
+        "counterpartyReceiverPath",
+        &JsValue::from_str(&report.counterparty_receiver_path.to_string()),
+    );
+    set(
+        &object,
+        "report",
+        &report
+            .report
+            .map(intake_report_value)
+            .unwrap_or(JsValue::UNDEFINED),
+    );
+    set(
+        &object,
+        "error",
+        &report
+            .error
+            .as_deref()
+            .map(JsValue::from_str)
+            .unwrap_or(JsValue::UNDEFINED),
+    );
+    object.into()
+}
+
+fn counterparty_send_report_value(report: OutboundPrivateCounterpartySendReport) -> JsValue {
+    let object = js_sys::Object::new();
+    set(
+        &object,
+        "counterparty",
+        &JsValue::from_str(&report.counterparty.to_string()),
+    );
+    set(
+        &object,
+        "counterpartyReceiverPath",
+        &JsValue::from_str(&report.counterparty_receiver_path.to_string()),
+    );
+    set(
+        &object,
+        "report",
+        &report
+            .report
+            .map(outbound_send_report_value)
+            .unwrap_or(JsValue::UNDEFINED),
+    );
+    set(
+        &object,
+        "error",
+        &report
+            .error
+            .as_deref()
+            .map(JsValue::from_str)
+            .unwrap_or(JsValue::UNDEFINED),
+    );
+    object.into()
+}
+
+fn outbound_send_report_value(report: OutboundPrivateSendReport) -> JsValue {
+    let object = js_sys::Object::new();
+    let attempted = js_sys::Array::new();
+    for id in report.attempted {
+        attempted.push(&JsValue::from_f64(id as f64));
+    }
+    set(&object, "attempted", &attempted.into());
+    let sent = js_sys::Array::new();
+    for id in report.sent {
+        sent.push(&JsValue::from_f64(id as f64));
+    }
+    set(&object, "sent", &sent.into());
+    let failed = js_sys::Array::new();
+    for failure in report.failed {
+        let item = js_sys::Object::new();
+        set(
+            &item,
+            "outboundMessageId",
+            &JsValue::from_f64(failure.outbound_message_id as f64),
+        );
+        failed.push(&item.into());
+    }
+    set(&object, "failed", &failed.into());
+    object.into()
+}
+
+fn private_stream_item_value(item: PrivateStreamItemView) -> JsValue {
+    let object = js_sys::Object::new();
+    set(
+        &object,
+        "id",
+        &JsValue::from_f64(item.stream_item_id as f64),
+    );
+    set(
+        &object,
+        "counterparty",
+        &JsValue::from_str(&item.counterparty.to_string()),
+    );
+    set(
+        &object,
+        "kind",
+        &item
+            .kind
+            .as_deref()
+            .map(JsValue::from_str)
+            .unwrap_or(JsValue::UNDEFINED),
+    );
+    set(&object, "rawJson", &JsValue::from_str(&item.raw_json));
+    set(
+        &object,
+        "eventId",
+        &item
+            .event_id
+            .as_deref()
+            .map(JsValue::from_str)
+            .unwrap_or(JsValue::UNDEFINED),
+    );
+    set(
+        &object,
+        "parseStatus",
+        &JsValue::from_str(parse_status_name(&item.parse_status)),
+    );
+    set(
+        &object,
+        "knownPaykitKind",
+        &item
+            .known_paykit_kind
+            .as_deref()
+            .map(JsValue::from_str)
+            .unwrap_or(JsValue::UNDEFINED),
+    );
+    object.into()
+}
+
+fn parse_status_name(value: &PrivateStreamParseStatus) -> &'static str {
+    match value {
+        PrivateStreamParseStatus::Valid => "Valid",
+        PrivateStreamParseStatus::MalformedRecognized => "MalformedRecognized",
+        PrivateStreamParseStatus::UnknownKind => "UnknownKind",
+        PrivateStreamParseStatus::InvalidJson => "InvalidJson",
         _ => "Unknown",
     }
 }

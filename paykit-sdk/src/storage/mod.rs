@@ -283,6 +283,9 @@ pub trait StorageTransaction {
         counterparty_receiver_path: &PaykitReceiverPath,
     ) -> Vec<PrivateStreamItemRecord>;
 
+    /// Load one private stream item by assigned id.
+    fn private_stream_item(&self, stream_item_id: u64) -> Option<PrivateStreamItemRecord>;
+
     /// Load an Event Message dedupe record.
     fn event_dedup_record(
         &self,

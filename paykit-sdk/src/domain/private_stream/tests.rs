@@ -97,6 +97,7 @@ async fn test_persist_private_stream_batch_stores_messages_and_checkpoint() {
         handshake_role: None,
         generation: 1,
         checkpointed_at: timestamp(),
+        peer_receiver_noise_public_key: None,
         replacement: Default::default(),
     };
     let messages = vec![
@@ -174,6 +175,7 @@ async fn test_persist_private_stream_batch_empty_checkpoint_updates_sync_time() 
         handshake_role: None,
         generation: 1,
         checkpointed_at: timestamp(),
+        peer_receiver_noise_public_key: None,
         replacement: Default::default(),
     };
 
@@ -567,6 +569,7 @@ async fn test_persist_private_stream_batch_rolls_back_with_stale_lease() {
         handshake_role: None,
         generation: 1,
         checkpointed_at: timestamp() + chrono::Duration::seconds(12),
+        peer_receiver_noise_public_key: None,
         replacement: Default::default(),
     };
 
@@ -586,4 +589,43 @@ async fn test_persist_private_stream_batch_rolls_back_with_stale_lease() {
     assert!(snapshot.private_stream_items.is_empty());
     assert!(snapshot.encrypted_link_states.is_empty());
     assert_eq!(snapshot.next_private_stream_item_id, 0);
+}
+
+#[tokio::test]
+async fn test_unknown_kind_chat_message_redelivery_conflicts_on_event_id() {
+    let storage = InMemoryStorage::new();
+    let counterparty = counterparty();
+    let event_id = "650e8400-e29b-41d4-a716-446655440000";
+    let first = format!(
+        r#"{{"version":1,"kind":"chat.message.v0","event_id":"{event_id}","body":"one"}}"#
+    );
+    let second = format!(
+        r#"{{"version":1,"kind":"chat.message.v0","event_id":"{event_id}","body":"two"}}"#
+    );
+
+    let report = persist_private_stream_batch(
+        &storage,
+        counterparty.clone(),
+        receiver_path(),
+        vec![private_message(&first), private_message(&second)],
+        None,
+        timestamp(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(report.stream_item_ids, vec![0, 1]);
+    assert_eq!(report.event_conflicts.len(), 1);
+    assert_eq!(report.event_conflicts[0].event_id, event_id);
+    assert_eq!(report.event_conflicts[0].first_stream_item_id, 0);
+    assert_eq!(report.event_conflicts[0].conflicting_stream_item_id, 1);
+    let snapshot = storage.snapshot().unwrap();
+    assert_eq!(
+        snapshot.private_stream_items[0].parse_status,
+        PrivateStreamParseStatus::UnknownKind
+    );
+    assert_eq!(
+        snapshot.private_stream_items[1].parse_status,
+        PrivateStreamParseStatus::UnknownKind
+    );
 }
