@@ -49,10 +49,12 @@ pub(crate) enum ReplacementStep {
 }
 
 impl ReplacementStep {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn clears_write_path(self) -> bool {
         matches!(self, Self::ClearLocalWritePath)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn starts_or_resumes_handshake(self) -> bool {
         matches!(
             self,
