@@ -14,8 +14,7 @@
   "files": [
     "paykit_wasm_bg.wasm",
     "paykit_wasm.js",
-    "paykit_wasm.d.ts",
-    "snippets/paykit-wasm-165ed2ed6d635aa8/inline0.js"
+    "paykit_wasm.d.ts"
   ],
   "main": "paykit_wasm.js",
   "types": "paykit_wasm.d.ts",

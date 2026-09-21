@@ -285,13 +285,36 @@ export class PaykitSdkHandle {
      */
     observeEncryptedLinkRecoveryMarker(counterparty: string, counterparty_receiver_path: string): Promise<any>;
     /**
+     * Fetch persisted intake rows by id so chat can route unknown kinds.
+     */
+    privateStreamItems(stream_item_ids: Array<any>): Promise<any>;
+    /**
      * Validate a hydration candidate without storage or network side effects.
      */
     static probeEncryptedLinkSnapshot(snapshot_bytes: Uint8Array): void;
     /**
+     * Send queued outbound private messages for one counterparty in order.
+     */
+    processOutboundPrivateMessages(counterparty: string, counterparty_receiver_path: string): Promise<any>;
+    /**
+     * Send queued outbound private messages for every pending counterparty.
+     */
+    processPendingPrivateMessages(): Promise<any>;
+    /**
      * Publish a local recovery marker for an explicit user retry.
      */
     publishEncryptedLinkRecoveryMarker(counterparty: string, counterparty_receiver_path: string): Promise<any>;
+    /**
+     * Receive and durably persist available private messages.
+     *
+     * Returns `{ receiveBatchId, streamItemIds, eventConflicts }`. Fetch
+     * payloads with `privateStreamItems`.
+     */
+    receivePrivateMessages(counterparty: string, counterparty_receiver_path: string): Promise<any>;
+    /**
+     * Receive private messages from every locally Linked counterparty.
+     */
+    receivePrivateMessagesFromLinkedPeers(): Promise<any>;
 }
 
 /**
@@ -608,35 +631,8 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
-    readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
-    readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
-    readonly authflowhandle_authorizationUrl: (a: number) => [number, number];
-    readonly authflowhandle_awaitApproval: (a: number) => any;
-    readonly pubkyclient_migrateHomeserverWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly pubkyclient_new: () => [number, number, number];
-    readonly pubkyclient_resolveMostRecentHomeserver: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
-    readonly pubkyclient_resumeSessionFromCookie: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
-    readonly pubkyclient_testnet: () => [number, number, number];
-    readonly publicGet: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly sessionhandle_deletePublic: (a: number, b: number, c: number) => any;
-    readonly sessionhandle_exportSession: (a: number) => [number, number];
-    readonly sessionhandle_pubky: (a: number) => [number, number];
-    readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
-    readonly signOutSession: (a: number) => any;
     readonly __wbg_paykitsdkhandle_free: (a: number, b: number) => void;
-    readonly getPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly getPaymentList: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
-    readonly listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly maxNoiseMessageLen: () => number;
-    readonly noiseTagLen: () => number;
-    readonly parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
     readonly paykitsdkhandle_deletePersistedState: (a: number) => any;
     readonly paykitsdkhandle_encryptedLinkRecoveryMarkerStatus: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly paykitsdkhandle_enqueueOpaquePrivateApplicationMessageJson: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
@@ -647,14 +643,15 @@ export interface InitOutput {
     readonly paykitsdkhandle_linkedPeers: (a: number) => any;
     readonly paykitsdkhandle_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly paykitsdkhandle_observeEncryptedLinkRecoveryMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly paykitsdkhandle_privateStreamItems: (a: number, b: any) => any;
     readonly paykitsdkhandle_probeEncryptedLinkSnapshot: (a: number, b: number) => [number, number];
+    readonly paykitsdkhandle_processOutboundPrivateMessages: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly paykitsdkhandle_processPendingPrivateMessages: (a: number) => any;
     readonly paykitsdkhandle_publishEncryptedLinkRecoveryMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly paykitsdkhandle_receivePrivateMessages: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly paykitsdkhandle_receivePrivateMessagesFromLinkedPeers: (a: number) => any;
     readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
-    readonly removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
-    readonly serializePrivatePaymentListJson: (a: any) => [number, number, number, number];
-    readonly setPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
-    readonly wasm_start: () => void;
     readonly __wbg_encryptedlinkhandle_free: (a: number, b: number) => void;
     readonly __wbg_linkhandshakehandle_free: (a: number, b: number) => void;
     readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
@@ -675,6 +672,7 @@ export interface InitOutput {
     readonly linkhandshakehandle_advance: (a: number) => any;
     readonly linkhandshakehandle_setMaxRecoveryAttempts: (a: number, b: number) => [number, number];
     readonly linkhandshakehandle_snapshot: (a: number) => [number, number, number, number];
+    readonly maxNoiseMessageLen: () => number;
     readonly memorynoisesession_close: (a: number) => void;
     readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
     readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
@@ -686,8 +684,38 @@ export interface InitOutput {
     readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
     readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
     readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
+    readonly noiseTagLen: () => number;
     readonly restoreEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly restoreEncryptedLinkHandshake: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly wasm_start: () => void;
+    readonly __wbg_authflowhandle_free: (a: number, b: number) => void;
+    readonly __wbg_pubkyclient_free: (a: number, b: number) => void;
+    readonly __wbg_sessionhandle_free: (a: number, b: number) => void;
+    readonly authflowhandle_authorizationUrl: (a: number) => [number, number];
+    readonly authflowhandle_awaitApproval: (a: number) => any;
+    readonly getPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly getPaymentList: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
+    readonly listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
+    readonly pubkyclient_migrateHomeserverWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly pubkyclient_new: () => [number, number, number];
+    readonly pubkyclient_resolveMostRecentHomeserver: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_restoreSession: (a: number, b: number, c: number) => any;
+    readonly pubkyclient_resumeSessionFromCookie: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_signinWithSecret: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_signupWithSecret: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly pubkyclient_startAuthFlow: (a: number, b: number, c: number) => [number, number, number];
+    readonly pubkyclient_testnet: () => [number, number, number];
+    readonly publicGet: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly serializePrivatePaymentListJson: (a: any) => [number, number, number, number];
+    readonly sessionhandle_deletePublic: (a: number, b: number, c: number) => any;
+    readonly sessionhandle_exportSession: (a: number) => [number, number];
+    readonly sessionhandle_pubky: (a: number) => [number, number];
+    readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
+    readonly setPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly signOutSession: (a: number) => any;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: any) => any;

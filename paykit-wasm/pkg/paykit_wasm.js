@@ -739,6 +739,15 @@ export class PaykitSdkHandle {
         return takeFromExternrefTable0(ret[0]);
     }
     /**
+     * Fetch persisted intake rows by id so chat can route unknown kinds.
+     * @param {Array<any>} stream_item_ids
+     * @returns {Promise<any>}
+     */
+    privateStreamItems(stream_item_ids) {
+        const ret = wasm.paykitsdkhandle_privateStreamItems(this.__wbg_ptr, stream_item_ids);
+        return ret;
+    }
+    /**
      * Validate a hydration candidate without storage or network side effects.
      * @param {Uint8Array} snapshot_bytes
      */
@@ -749,6 +758,31 @@ export class PaykitSdkHandle {
         if (ret[1]) {
             throw takeFromExternrefTable0(ret[0]);
         }
+    }
+    /**
+     * Send queued outbound private messages for one counterparty in order.
+     * @param {string} counterparty
+     * @param {string} counterparty_receiver_path
+     * @returns {Promise<any>}
+     */
+    processOutboundPrivateMessages(counterparty, counterparty_receiver_path) {
+        const ptr0 = passStringToWasm0(counterparty, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(counterparty_receiver_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.paykitsdkhandle_processOutboundPrivateMessages(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Send queued outbound private messages for every pending counterparty.
+     * @returns {Promise<any>}
+     */
+    processPendingPrivateMessages() {
+        const ret = wasm.paykitsdkhandle_processPendingPrivateMessages(this.__wbg_ptr);
+        return ret;
     }
     /**
      * Publish a local recovery marker for an explicit user retry.
@@ -766,6 +800,34 @@ export class PaykitSdkHandle {
             throw takeFromExternrefTable0(ret[1]);
         }
         return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Receive and durably persist available private messages.
+     *
+     * Returns `{ receiveBatchId, streamItemIds, eventConflicts }`. Fetch
+     * payloads with `privateStreamItems`.
+     * @param {string} counterparty
+     * @param {string} counterparty_receiver_path
+     * @returns {Promise<any>}
+     */
+    receivePrivateMessages(counterparty, counterparty_receiver_path) {
+        const ptr0 = passStringToWasm0(counterparty, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(counterparty_receiver_path, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.paykitsdkhandle_receivePrivateMessages(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Receive private messages from every locally Linked counterparty.
+     * @returns {Promise<any>}
+     */
+    receivePrivateMessagesFromLinkedPeers() {
+        const ret = wasm.paykitsdkhandle_receivePrivateMessagesFromLinkedPeers(this.__wbg_ptr);
+        return ret;
     }
 }
 if (Symbol.dispose) PaykitSdkHandle.prototype[Symbol.dispose] = PaykitSdkHandle.prototype.free;
@@ -1765,6 +1827,10 @@ function __wbg_get_imports() {
             const ret = Reflect.get(arg0, arg1);
             return ret;
         }, arguments); },
+        __wbg_get_unchecked_7c6bbabf5b0b1fbf: function(arg0, arg1) {
+            const ret = arg0[arg1 >>> 0];
+            return ret;
+        },
         __wbg_has_3f87d148146a0f4e: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.has(arg0, arg1);
             return ret;
@@ -2056,12 +2122,12 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1744, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1833, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_6f82f4e38fb734b8___convert__closures_____invoke___wasm_bindgen_6f82f4e38fb734b8___JsValue__core_ed718c3d60ebd546___result__Result_____wasm_bindgen_6f82f4e38fb734b8___JsError___true_);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1519, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1608, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_6f82f4e38fb734b8___convert__closures_____invoke_______true_);
             return ret;
         },
