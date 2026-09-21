@@ -337,17 +337,11 @@ where
         record.failure_count = record.failure_count.saturating_add(1);
     }
     tx.save_linked_peer(record);
-    if let Some(link_state) = tx.encrypted_link_state(counterparty, counterparty_receiver_path) {
-        tx.save_encrypted_link_state(EncryptedLinkStateRecord {
-            counterparty: counterparty.clone(),
-            counterparty_receiver_path: link_state.counterparty_receiver_path,
-            link_snapshot: None,
-            handshake_snapshot: None,
-            handshake_role: None,
-            generation: link_state.generation.saturating_add(1),
-            checkpointed_at: now,
-        });
-    }
+    // Keep the last viable link snapshot until the recovery orchestrator has
+    // drained it and a replacement link is established. Dropping it here
+    // destroys the only local route to the old inbox before that drain can
+    // happen. The subsequent drain/clear/handshake sequence owns generation
+    // advancement and snapshot replacement.
     Ok(RecoveryRequiredMark { new_episode })
 }
 

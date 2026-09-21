@@ -454,7 +454,7 @@ where
                 .await
             {
                 Ok(report) => report,
-                Err(err) if Self::link_handshake_error_requires_recovery(&err) => {
+                Err(err) if link_handshake_error_requires_recovery(&err) => {
                     let recovery_required = self
                         .storage
                         .transaction(|tx| {
@@ -549,7 +549,7 @@ where
         {
             Ok(handshake) => handshake,
             Err(err) => {
-                if Self::link_handshake_error_requires_recovery(&err) {
+                if link_handshake_error_requires_recovery(&err) {
                     self.mark_link_recovery_required(&counterparty, lease)
                         .await?;
                 }
@@ -611,16 +611,6 @@ where
         .map_err(Into::into)
     }
 
-    fn link_handshake_error_requires_recovery(err: &PaykitSdkError) -> bool {
-        matches!(
-            err,
-            PaykitSdkError::Transport { .. }
-                | PaykitSdkError::NotFound { .. }
-                | PaykitSdkError::Protocol { .. }
-                | PaykitSdkError::RecoveryRequired { .. }
-        )
-    }
-
     async fn advance_restored_link_handshake(
         &self,
         counterparty: PubkyPublicKey,
@@ -633,7 +623,7 @@ where
             Ok(progress) => progress,
             Err(err) => {
                 let err = PaykitSdkError::from(err);
-                if Self::link_handshake_error_requires_recovery(&err) {
+                if link_handshake_error_requires_recovery(&err) {
                     self.mark_link_recovery_required(&counterparty, lease)
                         .await?;
                 }
@@ -784,15 +774,12 @@ where
             .receiver_noise_public_key(&counterparty, &lease.counterparty_receiver_path)
             .await?;
         if matches!(peer_state, Some(LinkedPeerState::RecoveryRequired)) {
-            paykit_lib::clear_encrypted_link_outbox(
-                &session_access.session,
-                &secret_key,
-                &remote_public_key,
-                &remote_noise_public_key,
-                &self.config.receiver_path,
-                &lease.counterparty_receiver_path,
-            )
-            .await?;
+            return Err(PaykitSdkError::RecoveryRequired {
+                context: format!(
+                    "counterparty {counterparty} requires an old-inbox drain before replacement handshake"
+                ),
+                source: None,
+            });
         }
         let handshake = match role {
             EncryptedLinkHandshakeRole::Initiator => paykit_lib::initiate_encrypted_link(
@@ -896,6 +883,10 @@ where
         let secret_key = *session_access.receiver_noise_secret_key.as_bytes();
         Ok((session_access, secret_key))
     }
+}
+
+fn link_handshake_error_requires_recovery(err: &PaykitSdkError) -> bool {
+    matches!(err, PaykitSdkError::RecoveryRequired { .. })
 }
 
 fn clear_encrypted_link_state(

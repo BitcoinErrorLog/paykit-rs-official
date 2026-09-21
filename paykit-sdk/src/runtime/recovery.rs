@@ -455,17 +455,6 @@ where
                     lease.clone(),
                 )
                 .await?;
-            if changed {
-                paykit_lib::clear_encrypted_link_outbox(
-                    &session_access.session,
-                    secret_key,
-                    &remote_public_key,
-                    &remote_noise_public_key,
-                    &self.config.receiver_path,
-                    &lease.counterparty_receiver_path,
-                )
-                .await?;
-            }
             Ok(changed)
         }
         .await;

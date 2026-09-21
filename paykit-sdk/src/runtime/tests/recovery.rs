@@ -1,5 +1,20 @@
 use super::*;
 
+#[test]
+fn transport_errors_do_not_trigger_link_recovery() {
+    let transport = PaykitSdkError::Transport {
+        context: "temporary homeserver failure".into(),
+        source: None,
+    };
+    let recovery = PaykitSdkError::RecoveryRequired {
+        context: "authenticated link state is unusable".into(),
+        source: None,
+    };
+
+    assert!(!link_handshake_error_requires_recovery(&transport));
+    assert!(link_handshake_error_requires_recovery(&recovery));
+}
+
 #[tokio::test]
 async fn test_mark_private_recovery_pending_skips_newer_link_generation() {
     let storage = InMemoryStorage::new();
@@ -101,8 +116,8 @@ async fn test_mark_private_recovery_pending_skips_newer_link_generation() {
         .await
         .unwrap()
         .unwrap();
-    assert!(link_state.link_snapshot.is_none());
-    assert_eq!(link_state.generation, 3);
+    assert_eq!(link_state.link_snapshot, Some(vec![4, 5, 6]));
+    assert_eq!(link_state.generation, 2);
     assert!(storage
         .transaction({
             let counterparty = counterparty.clone();
