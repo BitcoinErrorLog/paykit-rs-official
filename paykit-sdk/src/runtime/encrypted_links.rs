@@ -361,6 +361,87 @@ where
         self.finish_peer_link_operation(lease, result).await
     }
 
+    /// Validate and seed an established Encrypted Link snapshot without any
+    /// homeserver I/O. Hydration uses this after a non-mutating probe; it must
+    /// never call `ensure_link_with_peer`, which treats stored bytes as live.
+    pub async fn import_encrypted_link_snapshot(
+        &self,
+        counterparty: PubkyPublicKey,
+        counterparty_receiver_path: PaykitReceiverPath,
+        snapshot_bytes: Vec<u8>,
+    ) -> Result<LinkedPeerHandshakeReport> {
+        paykit_lib::EncryptedLinkSnapshot::deserialize(&snapshot_bytes)?;
+        let now = self.clock.now();
+        self.storage
+            .transaction(move |tx| {
+                let generation = tx
+                    .encrypted_link_state(&counterparty, &counterparty_receiver_path)
+                    .map(|state| state.generation.saturating_add(1))
+                    .unwrap_or_default();
+                let mut peer = tx
+                    .linked_peer(&counterparty, &counterparty_receiver_path)
+                    .unwrap_or_else(|| {
+                        default_linked_peer(
+                            counterparty.clone(),
+                            counterparty_receiver_path.clone(),
+                        )
+                    });
+                if peer.state == LinkedPeerState::Blocked {
+                    return Err(PaykitSdkError::Policy {
+                        context: format!("counterparty {counterparty} is blocked"),
+                        source: None,
+                    });
+                }
+                peer.state = LinkedPeerState::Linked;
+                peer.last_sync_at = Some(now);
+                peer.failure_count = 0;
+                tx.save_linked_peer(peer);
+                tx.save_encrypted_link_state(EncryptedLinkStateRecord {
+                    counterparty: counterparty.clone(),
+                    counterparty_receiver_path: counterparty_receiver_path.clone(),
+                    link_snapshot: Some(snapshot_bytes),
+                    handshake_snapshot: None,
+                    handshake_role: None,
+                    generation,
+                    checkpointed_at: now,
+                });
+                Ok(LinkedPeerHandshakeReport {
+                    counterparty,
+                    counterparty_receiver_path,
+                    state: LinkedPeerState::Linked,
+                    generation,
+                    handshake_role: None,
+                })
+            })
+            .await
+    }
+
+    /// Export the durable snapshot used by a dual-read rollback release.
+    ///
+    /// Returns `None` when this peer does not currently have an established
+    /// link. The bytes are opaque secret material; callers must not log them.
+    pub async fn export_encrypted_link_snapshot(
+        &self,
+        counterparty: &PubkyPublicKey,
+        counterparty_receiver_path: &PaykitReceiverPath,
+    ) -> Result<Option<Vec<u8>>> {
+        self.storage
+            .transaction(|tx| {
+                Ok(tx
+                    .encrypted_link_state(counterparty, counterparty_receiver_path)
+                    .and_then(|state| state.link_snapshot))
+            })
+            .await
+    }
+
+    /// Non-mutating hydration probe. This validates the snapshot envelope
+    /// without reading or writing homeserver state and without persisting any
+    /// SDK state.
+    pub fn probe_encrypted_link_snapshot(snapshot_bytes: &[u8]) -> Result<()> {
+        paykit_lib::EncryptedLinkSnapshot::deserialize(snapshot_bytes)?;
+        Ok(())
+    }
+
     pub(super) async fn ensure_link_with_peer_with_claim(
         &self,
         counterparty: PubkyPublicKey,

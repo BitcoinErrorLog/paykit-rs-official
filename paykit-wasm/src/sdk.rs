@@ -228,6 +228,61 @@ impl PaykitSdkHandle {
         }))
     }
 
+    /// Offline hydration seed. This only validates and persists opaque snapshot
+    /// bytes; it does not contact the homeserver or advance a handshake.
+    #[wasm_bindgen(js_name = importEncryptedLinkSnapshot)]
+    pub fn import_encrypted_link_snapshot(
+        &self,
+        counterparty: &str,
+        counterparty_receiver_path: &str,
+        snapshot_bytes: &[u8],
+    ) -> Result<js_sys::Promise, JsValue> {
+        let counterparty = parse_public_key(counterparty)?;
+        let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let snapshot_bytes = snapshot_bytes.to_vec();
+        let runtime = Arc::clone(&self.runtime);
+        Ok(future_to_promise(async move {
+            let report = runtime
+                .import_encrypted_link_snapshot(
+                    counterparty,
+                    counterparty_receiver_path,
+                    snapshot_bytes,
+                )
+                .await
+                .map_err(|err| js_err("import Encrypted Link snapshot", err))?;
+            Ok(handshake_report_value(report))
+        }))
+    }
+
+    /// Export the current opaque snapshot for the web app's one-release
+    /// dual-write rollback window.
+    #[wasm_bindgen(js_name = exportEncryptedLinkSnapshot)]
+    pub fn export_encrypted_link_snapshot(
+        &self,
+        counterparty: &str,
+        counterparty_receiver_path: &str,
+    ) -> Result<js_sys::Promise, JsValue> {
+        let counterparty = parse_public_key(counterparty)?;
+        let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
+        Ok(future_to_promise(async move {
+            let snapshot = runtime
+                .export_encrypted_link_snapshot(&counterparty, &counterparty_receiver_path)
+                .await
+                .map_err(|err| js_err("export Encrypted Link snapshot", err))?;
+            Ok(snapshot
+                .map(|bytes| js_sys::Uint8Array::from(bytes.as_slice()).into())
+                .unwrap_or(JsValue::UNDEFINED))
+        }))
+    }
+
+    /// Validate a hydration candidate without storage or network side effects.
+    #[wasm_bindgen(js_name = probeEncryptedLinkSnapshot)]
+    pub fn probe_encrypted_link_snapshot(snapshot_bytes: &[u8]) -> Result<(), JsValue> {
+        WasmSdkRuntime::probe_encrypted_link_snapshot(snapshot_bytes)
+            .map_err(|err| js_err("probe Encrypted Link snapshot", err))
+    }
+
     /// List SDK-managed peer lifecycle records for UI state mapping.
     #[wasm_bindgen(js_name = linkedPeers)]
     pub fn linked_peers(&self) -> js_sys::Promise {
