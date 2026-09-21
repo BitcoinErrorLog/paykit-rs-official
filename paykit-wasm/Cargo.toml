@@ -48,3 +48,9 @@ uuid = { version = "1", features = ["js"] }
 # only provides with its `stream` feature; pubky's own wasm32 dependency
 # declaration omits it. Feature unification turns it on for the whole graph.
 reqwest = { version = "0.13", default-features = false, features = ["stream"] }
+
+# ExFAT worktrees write AppleDouble `._*.wasm` next to wasm-opt inputs; binaryen
+# then treats the sidecar as a second module and fails. Skip wasm-opt; the
+# unoptimized wasm is the artifact this crate already vendors in pkg/.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

@@ -4,8 +4,8 @@
   "collaborators": [
     "johnc@synonym.to"
   ],
-  "description": "Browser WASM binding for Paykit Encrypted Links and Payment Endpoints",
-  "version": "0.1.0-rc50",
+  "description": "Browser WASM binding for the Paykit Encrypted Link messaging surface",
+  "version": "0.1.0-rc44",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,7 +14,8 @@
   "files": [
     "paykit_wasm_bg.wasm",
     "paykit_wasm.js",
-    "paykit_wasm.d.ts"
+    "paykit_wasm.d.ts",
+    "snippets/paykit-wasm-165ed2ed6d635aa8/inline0.js"
   ],
   "main": "paykit_wasm.js",
   "types": "paykit_wasm.d.ts",

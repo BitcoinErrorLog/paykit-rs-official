@@ -215,6 +215,86 @@ export class MemoryNoiseSession {
 }
 
 /**
+ * Stateful Paykit SDK lifecycle binding for one browser identity.
+ *
+ * The handle owns the same Rust `ensure_link_with_peer` and recovery-marker
+ * state machine used by the mobile FFI. Its durable state is one
+ * revision-checked IndexedDB blob keyed by the authenticated Pubky owner.
+ */
+export class PaykitSdkHandle {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Delete the owner-scoped IndexedDB state blob after app sign-out.
+     *
+     * This is local-only and does not delete an Encrypted Link outbox or any
+     * remote history. Call it only after the app has completed its explicit
+     * sign-out/wipe transaction.
+     */
+    deletePersistedState(): Promise<any>;
+    /**
+     * Return the tracked recovery-marker state, if this peer is known.
+     */
+    encryptedLinkRecoveryMarkerStatus(counterparty: string, counterparty_receiver_path: string): Promise<any>;
+    /**
+     * Queue an app-defined `chat.*` envelope for the SDK's ordered send
+     * worker. The payload must contain version 1 and a UUID `event_id`.
+     */
+    enqueueOpaquePrivateApplicationMessageJson(counterparty: string, counterparty_receiver_path: string, raw_json: string): Promise<any>;
+    /**
+     * Start or advance the deterministic Encrypted Link lifecycle.
+     *
+     * Apps call this with `maxAdvanceSteps = 2`, then schedule another call
+     * while the returned state is `"Linking"`. It does not poll remote
+     * recovery markers; call `observeEncryptedLinkRecoveryMarker` on thread
+     * open and inbox sync even while a peer is `"Linked"`.
+     */
+    ensureLinkWithPeer(counterparty: string, counterparty_receiver_path: string, max_advance_steps: number): Promise<any>;
+    /**
+     * Export the current opaque snapshot for the web app's one-release
+     * dual-write rollback window.
+     */
+    exportEncryptedLinkSnapshot(counterparty: string, counterparty_receiver_path: string): Promise<any>;
+    /**
+     * Offline hydration seed. This only validates and persists opaque snapshot
+     * bytes; it does not contact the homeserver or advance a handshake.
+     */
+    importEncryptedLinkSnapshot(counterparty: string, counterparty_receiver_path: string, snapshot_bytes: Uint8Array): Promise<any>;
+    /**
+     * Initialize or refresh the persisted SDK identity state.
+     */
+    initialize(): Promise<any>;
+    /**
+     * List SDK-managed peer lifecycle records for UI state mapping.
+     */
+    linkedPeers(): Promise<any>;
+    /**
+     * Construct a managed-link runtime for `session.pubky()`.
+     *
+     * `receiverNoiseSecretKey` is supplied from the app KeyStore on each
+     * construction and is never written to IndexedDB. A restored browser
+     * session should be passed after `PubkyClient.restoreSession()` or
+     * `resumeSessionFromCookie()`.
+     */
+    constructor(session: SessionHandle, client: PubkyClient, receiver_noise_secret_key: Uint8Array, receiver_path: string);
+    /**
+     * Observe a counterparty recovery marker.
+     *
+     * This is intentionally separate from `ensureLinkWithPeer`: polling on
+     * every outbound drain would add a homeserver GET to the hot path.
+     */
+    observeEncryptedLinkRecoveryMarker(counterparty: string, counterparty_receiver_path: string): Promise<any>;
+    /**
+     * Validate a hydration candidate without storage or network side effects.
+     */
+    static probeEncryptedLinkSnapshot(snapshot_bytes: Uint8Array): void;
+    /**
+     * Publish a local recovery marker for an explicit user retry.
+     */
+    publishEncryptedLinkRecoveryMarker(counterparty: string, counterparty_receiver_path: string): Promise<any>;
+}
+
+/**
  * Pubky client facade. Construct once and reuse.
  */
 export class PubkyClient {
@@ -358,17 +438,6 @@ export function acceptEncryptedLink(session: SessionHandle, receiver_noise_secre
 export function clearEncryptedLinkOutbox(session: SessionHandle, local_noise_secret_key: Uint8Array, remote_pubky: string, remote_noise_public_key: string, local_receiver_path: string, remote_receiver_path: string): Promise<any>;
 
 /**
- * Compute `inbox_kid` for a recipient InboxKey X25519 public key.
- *
- * `inbox_kid = first_16_bytes(SHA256(x25519_pub))`, returned as lowercase
- * 32-character hex. `x25519PubHex` is a 64-character hex public key (the
- * form returned by `x25519GenerateKeypair`).
- *
- * Binds `pubky_crypto::sealed_blob_v2::Sb2Header::compute_inbox_kid`.
- */
-export function computeInboxKid(x25519_pub_hex: string): string;
-
-/**
  * Generate a random receiver-scoped Noise secret key (32 bytes).
  *
  * Mirrors `paykit_sdk::ReceiverNoiseSecretKey::random()`: the key is an
@@ -506,45 +575,6 @@ export function restoreEncryptedLink(session: SessionHandle, noise_secret_key: U
 export function restoreEncryptedLinkHandshake(session: SessionHandle, noise_secret_key: Uint8Array, remote_pubky: string, local_receiver_path: string, remote_receiver_path: string, client: PubkyClient, snapshot: Uint8Array): Promise<any>;
 
 /**
- * Decrypt an SB2 envelope for the recipient X25519 secret key.
- *
- * Binds `Sb2::decode` + `Sb2::decrypt`. `ownerPubky` accepts z-base-32 or
- * 64-hex. `canonicalPath` must match the path bound into the AAD at encrypt.
- */
-export function sb2Decrypt(envelope: Uint8Array, recipient_sk: Uint8Array, owner_pubky: string, canonical_path: string): Uint8Array;
-
-/**
- * Encrypt plaintext to an unsigned SB2 binary envelope.
- *
- * Binds `Sb2::encrypt_with_cert_id` + `Sb2::encode`. Does not reimplement
- * the cipher. Plaintext is capped at 64 KiB and `msg_id` at 128 ASCII
- * characters by the encoder. `ownerPubky`, `senderPeerid`, and
- * `recipientPeerid` accept z-base-32 or 64-hex.
- *
- * Call `sb2Sign` afterwards when the envelope must authenticate the sender.
- */
-export function sb2Encrypt(recipient_inbox_pk: Uint8Array, plaintext: Uint8Array, context_id: Uint8Array, msg_id: string | null | undefined, purpose: string | null | undefined, owner_pubky: string, sender_peerid: string, recipient_peerid: string, canonical_path: string, created_at?: bigint | null, expires_at?: bigint | null, cert_id?: Uint8Array | null): Uint8Array;
-
-/**
- * Sign an SB2 envelope with the sender's Ed25519 secret key.
- *
- * Binds `Sb2::decode` + `Sb2::sign` + `Sb2::encode`. `ownerPubky` accepts
- * z-base-32 or 64-hex and must match the path bound into the AAD at encrypt.
- */
-export function sb2Sign(envelope: Uint8Array, sender_ed25519_sk: Uint8Array, owner_pubky: string, canonical_path: string): Uint8Array;
-
-/**
- * Verify the Ed25519 signature on an SB2 envelope.
- *
- * Returns `true` when a signature is present and valid, `false` when no
- * signature is present. Rejects when a signature is present but invalid
- * (mirrors `pubky_noise` UniFFI `sb2_verify_signature`).
- *
- * `ownerPubky` accepts z-base-32 or 64-hex and is normalized to 32 bytes.
- */
-export function sb2VerifySignature(envelope: Uint8Array, owner_pubky: string, canonical_path: string): boolean;
-
-/**
  * Serialize a complete Private Payment List to its versioned JSON wire form.
  *
  * `endpoints` is a plain object `{ identifier: payload }`. The result is
@@ -569,26 +599,62 @@ export function setPaymentEndpoint(session: SessionHandle, receiver_path_value: 
  */
 export function signOutSession(session: SessionHandle): Promise<any>;
 
-/**
- * Generate a random X25519 keypair.
- *
- * Returns `{ publicKey, secretKey }` as lowercase 64-character hex strings.
- * This is **not** `generateNoiseSecretKey` (that is an Ed25519 seed).
- *
- * Binds `pubky_crypto::sealed_blob::x25519_generate_keypair`.
- */
-export function x25519GenerateKeypair(): object;
-
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_encryptedlinkhandle_free: (a: number, b: number) => void;
+    readonly __wbg_linkhandshakehandle_free: (a: number, b: number) => void;
+    readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
+    readonly acceptEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly clearEncryptedLinkOutbox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
+    readonly encryptedlinkhandle_close: (a: number) => any;
+    readonly encryptedlinkhandle_localReceiverPath: (a: number) => [number, number];
+    readonly encryptedlinkhandle_receivePrivateApplicationMessages: (a: number) => any;
+    readonly encryptedlinkhandle_recipient: (a: number) => [number, number];
+    readonly encryptedlinkhandle_remoteNoisePublicKey: (a: number) => [number, number];
+    readonly encryptedlinkhandle_remoteReceiverPath: (a: number) => [number, number];
+    readonly encryptedlinkhandle_sendPrivateApplicationMessageJson: (a: number, b: number, c: number) => any;
+    readonly encryptedlinkhandle_sendPrivatePaymentList: (a: number, b: any) => [number, number, number];
+    readonly encryptedlinkhandle_setMaxSendRetries: (a: number, b: number) => [number, number];
+    readonly encryptedlinkhandle_snapshot: (a: number) => [number, number, number, number];
+    readonly initiateEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly linkhandshakehandle_advance: (a: number) => any;
+    readonly linkhandshakehandle_setMaxRecoveryAttempts: (a: number, b: number) => [number, number];
+    readonly linkhandshakehandle_snapshot: (a: number) => [number, number, number, number];
+    readonly memorynoisesession_close: (a: number) => void;
+    readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly memorynoisesession_isHandshakeComplete: (a: number) => number;
+    readonly memorynoisesession_isTransport: (a: number) => number;
+    readonly memorynoisesession_linkIdHex: (a: number) => [number, number];
+    readonly memorynoisesession_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
+    readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
+    readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
+    readonly restoreEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly restoreEncryptedLinkHandshake: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly __wbg_paykitsdkhandle_free: (a: number, b: number) => void;
+    readonly generateNoiseSecretKey: () => [number, number];
     readonly getPaymentEndpoint: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly getPaymentList: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly getReceiverMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly listPaykitReceiverPaths: (a: number, b: number, c: number) => [number, number, number];
     readonly listPaymentMethods: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
     readonly parsePrivatePaymentListJson: (a: number, b: number) => [number, number, number];
+    readonly paykitsdkhandle_deletePersistedState: (a: number) => any;
+    readonly paykitsdkhandle_encryptedLinkRecoveryMarkerStatus: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly paykitsdkhandle_enqueueOpaquePrivateApplicationMessageJson: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly paykitsdkhandle_ensureLinkWithPeer: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly paykitsdkhandle_exportEncryptedLinkSnapshot: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly paykitsdkhandle_importEncryptedLinkSnapshot: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly paykitsdkhandle_initialize: (a: number) => any;
+    readonly paykitsdkhandle_linkedPeers: (a: number) => any;
+    readonly paykitsdkhandle_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly paykitsdkhandle_observeEncryptedLinkRecoveryMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly paykitsdkhandle_probeEncryptedLinkSnapshot: (a: number, b: number) => [number, number];
+    readonly paykitsdkhandle_publishEncryptedLinkRecoveryMarker: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly publishReceiverMarker: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
     readonly removePaymentEndpoint: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly removeReceiverMarker: (a: number, b: number, c: number) => [number, number, number];
@@ -614,63 +680,24 @@ export interface InitOutput {
     readonly sessionhandle_pubky: (a: number) => [number, number];
     readonly sessionhandle_putPublic: (a: number, b: number, c: number, d: number, e: number) => any;
     readonly signOutSession: (a: number) => any;
-    readonly __wbg_encryptedlinkhandle_free: (a: number, b: number) => void;
-    readonly __wbg_linkhandshakehandle_free: (a: number, b: number) => void;
-    readonly acceptEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly clearEncryptedLinkOutbox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
-    readonly encryptedlinkhandle_close: (a: number) => any;
-    readonly encryptedlinkhandle_localReceiverPath: (a: number) => [number, number];
-    readonly encryptedlinkhandle_receivePrivateApplicationMessages: (a: number) => any;
-    readonly encryptedlinkhandle_recipient: (a: number) => [number, number];
-    readonly encryptedlinkhandle_remoteNoisePublicKey: (a: number) => [number, number];
-    readonly encryptedlinkhandle_remoteReceiverPath: (a: number) => [number, number];
-    readonly encryptedlinkhandle_sendPrivateApplicationMessageJson: (a: number, b: number, c: number) => any;
-    readonly encryptedlinkhandle_sendPrivatePaymentList: (a: number, b: any) => [number, number, number];
-    readonly encryptedlinkhandle_setMaxSendRetries: (a: number, b: number) => [number, number];
-    readonly encryptedlinkhandle_snapshot: (a: number) => [number, number, number, number];
-    readonly initiateEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly linkhandshakehandle_advance: (a: number) => any;
-    readonly linkhandshakehandle_setMaxRecoveryAttempts: (a: number, b: number) => [number, number];
-    readonly linkhandshakehandle_snapshot: (a: number) => [number, number, number, number];
-    readonly restoreEncryptedLink: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly restoreEncryptedLinkHandshake: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly maxNoiseMessageLen: () => number;
     readonly noiseTagLen: () => number;
-    readonly computeInboxKid: (a: number, b: number) => [number, number, number, number];
-    readonly generateNoiseSecretKey: () => [number, number];
-    readonly noisePublicKeyFromSecret: (a: number, b: number) => [number, number, number, number];
-    readonly sb2Decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
-    readonly sb2Encrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: bigint, u: number, v: bigint, w: number, x: number) => [number, number, number, number];
-    readonly sb2Sign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
-    readonly sb2VerifySignature: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
-    readonly x25519GenerateKeypair: () => any;
-    readonly __wbg_memorynoisesession_free: (a: number, b: number) => void;
-    readonly memorynoisesession_close: (a: number) => void;
-    readonly memorynoisesession_decrypt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly memorynoisesession_encrypt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly memorynoisesession_isHandshakeComplete: (a: number) => number;
-    readonly memorynoisesession_isTransport: (a: number) => number;
-    readonly memorynoisesession_linkIdHex: (a: number) => [number, number];
-    readonly memorynoisesession_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-    readonly memorynoisesession_readHandshakeMessage: (a: number, b: number, c: number) => [number, number];
-    readonly memorynoisesession_transitionTransport: (a: number) => [number, number];
-    readonly memorynoisesession_writeHandshakeMessage: (a: number) => [number, number, number, number];
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: any) => any;
     readonly __wbg_intounderlyingbytesource_free: (a: number, b: number) => void;
+    readonly __wbg_intounderlyingsink_free: (a: number, b: number) => void;
     readonly intounderlyingbytesource_autoAllocateChunkSize: (a: number) => number;
     readonly intounderlyingbytesource_cancel: (a: number) => void;
     readonly intounderlyingbytesource_pull: (a: number, b: any) => any;
     readonly intounderlyingbytesource_start: (a: number, b: any) => void;
     readonly intounderlyingbytesource_type: (a: number) => number;
-    readonly __wbg_intounderlyingsink_free: (a: number, b: number) => void;
     readonly intounderlyingsink_abort: (a: number, b: any) => any;
     readonly intounderlyingsink_close: (a: number) => any;
     readonly intounderlyingsink_write: (a: number, b: any) => any;
-    readonly wasm_bindgen__convert__closures_____invoke__h0c1430703438ec11: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen__convert__closures_____invoke__h31c10299f3023db4: (a: number, b: number, c: any, d: any) => void;
-    readonly wasm_bindgen__convert__closures_____invoke__h7d83aa45adf6d0a1: (a: number, b: number) => void;
+    readonly wasm_bindgen_6f82f4e38fb734b8___convert__closures_____invoke___wasm_bindgen_6f82f4e38fb734b8___JsValue__core_ed718c3d60ebd546___result__Result_____wasm_bindgen_6f82f4e38fb734b8___JsError___true_: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen_6f82f4e38fb734b8___convert__closures_____invoke___js_sys_cccacd3e1765f0c3___Function_fn_wasm_bindgen_6f82f4e38fb734b8___JsValue_____wasm_bindgen_6f82f4e38fb734b8___sys__Undefined___js_sys_cccacd3e1765f0c3___Function_fn_wasm_bindgen_6f82f4e38fb734b8___JsValue_____wasm_bindgen_6f82f4e38fb734b8___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
+    readonly wasm_bindgen_6f82f4e38fb734b8___convert__closures_____invoke_______true_: (a: number, b: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
