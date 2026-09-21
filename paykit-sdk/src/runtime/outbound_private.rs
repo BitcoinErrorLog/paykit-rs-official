@@ -7,6 +7,32 @@ where
     P: PaymentAdapter,
     C: Clock,
 {
+    /// Queue an opaque app-defined Private Application Message.
+    ///
+    /// Chat kinds are not Paykit payment kinds. They require only the common
+    /// envelope (`version`, non-empty `kind`, UUID `event_id`) and are sent by
+    /// the existing ordered private-message worker.
+    pub async fn enqueue_opaque_private_application_message_json(
+        &self,
+        counterparty: PubkyPublicKey,
+        counterparty_receiver_path: PaykitReceiverPath,
+        raw_json: String,
+    ) -> Result<OutboundPrivateMessageRecord> {
+        self.ensure_peer_not_recovery_required_or_blocked(
+            &counterparty,
+            &counterparty_receiver_path,
+        )
+        .await?;
+        crate::domain::outbound_private::enqueue_opaque_private_message(
+            &self.storage,
+            counterparty,
+            counterparty_receiver_path,
+            raw_json,
+            self.clock.now(),
+        )
+        .await
+    }
+
     /// Send queued outbound private messages for one counterparty in order.
     pub async fn process_outbound_private_messages(
         &self,

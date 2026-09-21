@@ -166,6 +166,31 @@ impl PaykitSdkHandle {
         }))
     }
 
+    /// Queue an app-defined `chat.*` envelope for the SDK's ordered send
+    /// worker. The payload must contain version 1 and a UUID `event_id`.
+    #[wasm_bindgen(js_name = enqueueOpaquePrivateApplicationMessageJson)]
+    pub fn enqueue_opaque_private_application_message_json(
+        &self,
+        counterparty: &str,
+        counterparty_receiver_path: &str,
+        raw_json: String,
+    ) -> Result<js_sys::Promise, JsValue> {
+        let counterparty = parse_public_key(counterparty)?;
+        let counterparty_receiver_path = parse_receiver_path(counterparty_receiver_path)?;
+        let runtime = Arc::clone(&self.runtime);
+        Ok(future_to_promise(async move {
+            let record = runtime
+                .enqueue_opaque_private_application_message_json(
+                    counterparty,
+                    counterparty_receiver_path,
+                    raw_json,
+                )
+                .await
+                .map_err(|err| js_err("enqueue opaque private message", err))?;
+            Ok(JsValue::from_f64(record.outbound_message_id as f64))
+        }))
+    }
+
     /// Observe a counterparty recovery marker.
     ///
     /// This is intentionally separate from `ensureLinkWithPeer`: polling on

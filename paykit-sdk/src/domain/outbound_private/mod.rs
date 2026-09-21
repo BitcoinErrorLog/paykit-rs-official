@@ -163,6 +163,31 @@ where
         .await
 }
 
+pub(crate) async fn enqueue_opaque_private_message<S>(
+    storage: &S,
+    counterparty: PubkyPublicKey,
+    counterparty_receiver_path: PaykitReceiverPath,
+    raw_json: String,
+    now: DateTime<Utc>,
+) -> Result<OutboundPrivateMessageRecord>
+where
+    S: StorageAdapter,
+{
+    let kind = validate_opaque_private_message(&raw_json)?;
+    storage
+        .transaction(move |tx| {
+            let record = tx.insert_outbound_private_message(NewOutboundPrivateMessage::new(
+                counterparty,
+                counterparty_receiver_path,
+                kind,
+                raw_json,
+                now,
+            ));
+            Ok(record)
+        })
+        .await
+}
+
 /// Enqueue one raw JSON Private Application Message while a peer operation
 /// lease is still active.
 pub(crate) async fn enqueue_private_message_with_link_lease<S>(
@@ -304,7 +329,11 @@ pub(crate) fn mark_outbound_recovery_required(
 pub(crate) fn validate_queued_outbound_private_message(
     record: &OutboundPrivateMessageRecord,
 ) -> Result<()> {
-    let kind = validate_outbound_private_message(&record.raw_json)?;
+    let kind = if record.kind.starts_with("chat.") {
+        validate_opaque_private_message(&record.raw_json)?
+    } else {
+        validate_outbound_private_message(&record.raw_json)?
+    };
     if kind != record.kind {
         return Err(PaykitSdkError::Protocol {
             context: format!(
@@ -315,6 +344,46 @@ pub(crate) fn validate_queued_outbound_private_message(
         });
     }
     Ok(())
+}
+
+fn validate_opaque_private_message(raw_json: &str) -> Result<String> {
+    if raw_json.len() > paykit_lib::pubky_noise::snow_crypto::PUBKY_NOISE_MSG_LEN {
+        return Err(PaykitSdkError::Protocol {
+            context: "Private Application Message exceeds pubky-noise message size".into(),
+            source: None,
+        });
+    }
+    let value: serde_json::Value =
+        serde_json::from_str(raw_json).map_err(|err| PaykitSdkError::Protocol {
+            context: format!("invalid private message JSON: {err}"),
+            source: None,
+        })?;
+    if value.get("version").and_then(serde_json::Value::as_u64) != Some(1) {
+        return Err(PaykitSdkError::Protocol {
+            context: "opaque private message requires version 1".into(),
+            source: None,
+        });
+    }
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .filter(|kind| !kind.is_empty())
+        .ok_or_else(|| PaykitSdkError::Protocol {
+            context: "opaque private message kind is missing".into(),
+            source: None,
+        })?;
+    let event_id = value
+        .get("event_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| PaykitSdkError::Protocol {
+            context: "opaque private message event_id is missing".into(),
+            source: None,
+        })?;
+    uuid::Uuid::parse_str(event_id).map_err(|_| PaykitSdkError::Protocol {
+        context: "opaque private message event_id must be a UUID".into(),
+        source: None,
+    })?;
+    Ok(kind.to_owned())
 }
 
 pub(crate) fn validate_outbound_private_message(raw_json: &str) -> Result<String> {
