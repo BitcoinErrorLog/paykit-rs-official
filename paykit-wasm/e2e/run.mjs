@@ -53,6 +53,7 @@ const browserTypes = { chromium, firefox, webkit };
 
 // PaykitReceiverPath requires the runtime segment to be 'wallet' or 'server'.
 const RECEIVER_PATH = "marketplace/wallet";
+const SDK_RECEIVER_PATH = "sdk/wallet";
 const HANDSHAKE_ROUND_LIMIT = 90;
 const HANDSHAKE_ROUND_DELAY_MS = 700;
 const RECEIVE_POLL_LIMIT = 60;
@@ -245,6 +246,55 @@ async function receiveMessages(page, minCount, { pollLimit, pollDelay }) {
     },
     { minCount, pollLimit, pollDelay },
   );
+}
+
+async function constructManagedSdk(page, receiverPath) {
+  return page.evaluate(async (receiverPath) => {
+    const p = window.paykit;
+    const s = window.state;
+    s.managedSdk = new p.PaykitSdkHandle(
+      s.session,
+      s.client,
+      s.noiseSecret,
+      receiverPath,
+    );
+    return await s.managedSdk.initialize();
+  }, receiverPath);
+}
+
+async function ensureManagedLink(page, counterparty, receiverPath) {
+  return page.evaluate(
+    async ({ counterparty, receiverPath }) =>
+      await window.state.managedSdk.ensureLinkWithPeer(
+        counterparty,
+        receiverPath,
+        2,
+      ),
+    { counterparty, receiverPath },
+  );
+}
+
+async function indexedDbStateRecord(page, owner) {
+  return page.evaluate(async (owner) => {
+    const database = await new Promise((resolve, reject) => {
+      const open = indexedDB.open("hypercolor-paykit-sdk", 1);
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    try {
+      const transaction = database.transaction("state", "readonly");
+      const record = await new Promise((resolve, reject) => {
+        const request = transaction.objectStore("state").get(owner);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      return record === undefined
+        ? undefined
+        : { byteLength: record.blob.byteLength, revision: record.revision };
+    } finally {
+      database.close();
+    }
+  }, owner);
 }
 
 // --- main ----------------------------------------------------------------------
@@ -443,6 +493,89 @@ async function main() {
     const missingMarker = await readMarker(alice, bobId.pubky, "otherapp/wallet");
     assert.equal(missingMarker, undefined);
     ok("unpublished marker path resolves to undefined (clean None)");
+
+    // Managed SDK links use a separate receiver path so this proof cannot
+    // interfere with the legacy raw-link coverage below.
+    for (const page of [alice, bob]) {
+      await page.evaluate(async (receiverPath) => {
+        const p = window.paykit;
+        const s = window.state;
+        await p.publishReceiverMarker(
+          s.session,
+          receiverPath,
+          s.noisePublic,
+          true,
+          false,
+          false,
+          false,
+        );
+      }, SDK_RECEIVER_PATH);
+    }
+    const [aliceInitialized, bobInitialized] = await Promise.all([
+      constructManagedSdk(alice, SDK_RECEIVER_PATH),
+      constructManagedSdk(bob, SDK_RECEIVER_PATH),
+    ]);
+    assert.equal(aliceInitialized.publicKey, aliceId.pubky);
+    assert.equal(bobInitialized.publicKey, bobId.pubky);
+    const aliceState = await indexedDbStateRecord(alice, aliceId.pubky);
+    const bobState = await indexedDbStateRecord(bob, bobId.pubky);
+    assert.ok(aliceState?.byteLength > 0 && aliceState?.revision);
+    assert.ok(bobState?.byteLength > 0 && bobState?.revision);
+    ok("managed SDK initializes owner-scoped IndexedDB state blobs");
+
+    let managedAlice;
+    let managedBob;
+    for (let round = 0; round < HANDSHAKE_ROUND_LIMIT; round += 1) {
+      [managedAlice, managedBob] = await Promise.all([
+        ensureManagedLink(alice, bobId.pubky, SDK_RECEIVER_PATH),
+        ensureManagedLink(bob, aliceId.pubky, SDK_RECEIVER_PATH),
+      ]);
+      if (managedAlice.state === "Linked" && managedBob.state === "Linked") break;
+      await new Promise((resolve) => setTimeout(resolve, HANDSHAKE_ROUND_DELAY_MS));
+    }
+    assert.equal(managedAlice?.state, "Linked");
+    assert.equal(managedBob?.state, "Linked");
+    ok("managed SDK establishes a deterministic Encrypted Link over homeserver transport");
+
+    // Reconstructing the handle forces the SDK to decode the persisted blob;
+    // the durable link state must survive the old handle's lifetime.
+    await Promise.all([
+      constructManagedSdk(alice, SDK_RECEIVER_PATH),
+      constructManagedSdk(bob, SDK_RECEIVER_PATH),
+    ]);
+    const [aliceManagedPeers, bobManagedPeers] = await Promise.all([
+      alice.evaluate(async () => await window.state.managedSdk.linkedPeers()),
+      bob.evaluate(async () => await window.state.managedSdk.linkedPeers()),
+    ]);
+    assert.deepEqual(aliceManagedPeers, [
+      {
+        counterparty: bobId.pubky,
+        counterpartyReceiverPath: SDK_RECEIVER_PATH,
+        state: "Linked",
+        failureCount: 0,
+      },
+    ]);
+    assert.deepEqual(bobManagedPeers, [
+      {
+        counterparty: aliceId.pubky,
+        counterpartyReceiverPath: SDK_RECEIVER_PATH,
+        state: "Linked",
+        failureCount: 0,
+      },
+    ]);
+    ok("managed SDK reloads the linked peer from IndexedDB without a second handshake");
+
+    const observedRecoveryMarker = await bob.evaluate(
+      async ({ counterparty, receiverPath }) =>
+        await window.state.managedSdk.observeEncryptedLinkRecoveryMarker(
+          counterparty,
+          receiverPath,
+        ),
+      { counterparty: aliceId.pubky, receiverPath: SDK_RECEIVER_PATH },
+    );
+    assert.equal(observedRecoveryMarker.state, "Linked");
+    assert.equal(observedRecoveryMarker.remoteMarkerChanged, false);
+    ok("managed SDK observes an absent recovery marker without changing a live link");
 
     // 4. Handshake over homeserver transport.
     await alice.evaluate(
