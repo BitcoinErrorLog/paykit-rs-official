@@ -486,6 +486,7 @@ where
                 if remote_recovery_marker_is_stale(
                     existing_peer.as_ref(),
                     link_state.as_ref(),
+                    attempt_id,
                     marker_created_at,
                 ) {
                     return Ok(false);
@@ -553,6 +554,7 @@ where
                 if remote_recovery_marker_is_stale(
                     existing_peer.as_ref(),
                     link_state.as_ref(),
+                    attempt_id,
                     marker_created_at,
                 ) {
                     return Ok(false);
@@ -779,8 +781,16 @@ fn parse_recovery_marker_created_at(marker: &EncryptedLinkRecoveryMarker) -> Res
 fn remote_recovery_marker_is_stale(
     peer: Option<&LinkedPeerRecord>,
     link_state: Option<&EncryptedLinkStateRecord>,
+    attempt_id: &str,
     marker_created_at: DateTime<Utc>,
 ) -> bool {
+    // A new remote episode is never stale against a local Complete checkpoint.
+    // One-sided replacement can Linked while the peer is still recovering; the
+    // new attempt_id is the join signal.
+    if !peer.is_some_and(|record| record.remote_recovery_attempt_id.as_deref() == Some(attempt_id))
+    {
+        return false;
+    }
     // Recovery marker timestamps are serialized with second precision. When a
     // marker lands in the same second as a newer local checkpoint, prefer
     // preserving local progress; deterministic send/receive failures will mark

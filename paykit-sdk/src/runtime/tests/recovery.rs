@@ -421,8 +421,8 @@ async fn test_remote_recovery_marker_observation_ignores_stale_marker() {
                     local_recovery_attempt_id: None,
                     local_recovery_marker_created_at: None,
                     local_recovery_marker_last_error: None,
-                    remote_recovery_attempt_id: None,
-                    remote_recovery_marker_observed_at: None,
+                    remote_recovery_attempt_id: Some("650e8400-e29b-41d4-a716-446655440000".into()),
+                    remote_recovery_marker_observed_at: Some(FixedClock.now()),
                 });
                 tx.save_encrypted_link_state(EncryptedLinkStateRecord {
                     counterparty,
@@ -464,13 +464,90 @@ async fn test_remote_recovery_marker_observation_ignores_stale_marker() {
         .unwrap()
         .unwrap();
     assert_eq!(peer.state, LinkedPeerState::Linked);
-    assert!(peer.remote_recovery_attempt_id.is_none());
+    assert_eq!(
+        peer.remote_recovery_attempt_id.as_deref(),
+        Some("650e8400-e29b-41d4-a716-446655440000")
+    );
     let link_state = crate::load_encrypted_link_state(&storage, &counterparty, &receiver_path())
         .await
         .unwrap()
         .unwrap();
     assert_eq!(link_state.link_snapshot, Some(vec![1, 2, 3]));
     assert_eq!(link_state.generation, 7);
+}
+
+#[tokio::test]
+async fn test_remote_recovery_marker_observation_honors_new_attempt_against_newer_checkpoint() {
+    let storage = InMemoryStorage::new();
+    let counterparty = PubkyPublicKey::from_public_key(&pubky::Keypair::random().public_key());
+    storage
+        .transaction({
+            let counterparty = counterparty.clone();
+            move |tx| {
+                tx.save_linked_peer(LinkedPeerRecord {
+                    counterparty: counterparty.clone(),
+                    counterparty_receiver_path: receiver_path(),
+                    state: LinkedPeerState::Linked,
+                    last_sync_at: Some(FixedClock.now()),
+                    last_private_receive_at: None,
+                    failure_count: 0,
+                    local_recovery_attempt_id: None,
+                    local_recovery_marker_created_at: None,
+                    local_recovery_marker_last_error: None,
+                    remote_recovery_attempt_id: Some("550e8400-e29b-41d4-a716-446655440000".into()),
+                    remote_recovery_marker_observed_at: Some(
+                        FixedClock.now() - ChronoDuration::seconds(5),
+                    ),
+                });
+                tx.save_encrypted_link_state(EncryptedLinkStateRecord {
+                    counterparty,
+                    counterparty_receiver_path: receiver_path(),
+                    link_snapshot: Some(vec![1, 2, 3]),
+                    handshake_snapshot: None,
+                    handshake_role: None,
+                    generation: 7,
+                    checkpointed_at: FixedClock.now(),
+                    peer_receiver_noise_public_key: None,
+                    replacement: Default::default(),
+                });
+                Ok(())
+            }
+        })
+        .await
+        .unwrap();
+    let sdk = PaykitSdk::with_clock(
+        storage.clone(),
+        TestPubkySessionProvider { session: None },
+        TestPaymentAdapter,
+        PaykitSdkConfig::default(),
+        FixedClock,
+    );
+
+    let changed = sdk
+        .mark_remote_recovery_marker_observed_if_needed(
+            &counterparty,
+            &receiver_path(),
+            "650e8400-e29b-41d4-a716-446655440000",
+            FixedClock.now() - ChronoDuration::seconds(1),
+        )
+        .await
+        .unwrap();
+
+    assert!(changed);
+    let peer = crate::load_linked_peer(&storage, &counterparty, &receiver_path())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(peer.state, LinkedPeerState::RecoveryRequired);
+    assert_eq!(
+        peer.remote_recovery_attempt_id.as_deref(),
+        Some("650e8400-e29b-41d4-a716-446655440000")
+    );
+    let link_state = crate::load_encrypted_link_state(&storage, &counterparty, &receiver_path())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(link_state.link_snapshot, Some(vec![1, 2, 3]));
 }
 
 #[tokio::test]
@@ -491,8 +568,8 @@ async fn test_remote_recovery_marker_observation_ignores_same_second_marker() {
                     local_recovery_attempt_id: None,
                     local_recovery_marker_created_at: None,
                     local_recovery_marker_last_error: None,
-                    remote_recovery_attempt_id: None,
-                    remote_recovery_marker_observed_at: None,
+                    remote_recovery_attempt_id: Some("650e8400-e29b-41d4-a716-446655440000".into()),
+                    remote_recovery_marker_observed_at: Some(FixedClock.now()),
                 });
                 tx.save_encrypted_link_state(EncryptedLinkStateRecord {
                     counterparty,
@@ -534,7 +611,10 @@ async fn test_remote_recovery_marker_observation_ignores_same_second_marker() {
         .unwrap()
         .unwrap();
     assert_eq!(peer.state, LinkedPeerState::Linked);
-    assert!(peer.remote_recovery_attempt_id.is_none());
+    assert_eq!(
+        peer.remote_recovery_attempt_id.as_deref(),
+        Some("650e8400-e29b-41d4-a716-446655440000")
+    );
     let link_state = crate::load_encrypted_link_state(&storage, &counterparty, &receiver_path())
         .await
         .unwrap()
@@ -561,8 +641,8 @@ async fn test_remote_recovery_marker_observation_ignores_marker_before_private_r
                     local_recovery_attempt_id: None,
                     local_recovery_marker_created_at: None,
                     local_recovery_marker_last_error: None,
-                    remote_recovery_attempt_id: None,
-                    remote_recovery_marker_observed_at: None,
+                    remote_recovery_attempt_id: Some("650e8400-e29b-41d4-a716-446655440000".into()),
+                    remote_recovery_marker_observed_at: Some(FixedClock.now()),
                 });
                 tx.save_encrypted_link_state(EncryptedLinkStateRecord {
                     counterparty,
@@ -604,7 +684,10 @@ async fn test_remote_recovery_marker_observation_ignores_marker_before_private_r
         .unwrap()
         .unwrap();
     assert_eq!(peer.state, LinkedPeerState::Linked);
-    assert!(peer.remote_recovery_attempt_id.is_none());
+    assert_eq!(
+        peer.remote_recovery_attempt_id.as_deref(),
+        Some("650e8400-e29b-41d4-a716-446655440000")
+    );
     let link_state = crate::load_encrypted_link_state(&storage, &counterparty, &receiver_path())
         .await
         .unwrap()
