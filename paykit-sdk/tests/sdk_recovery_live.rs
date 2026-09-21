@@ -523,6 +523,14 @@ async fn drive_link(g: &Runtime, h: &Runtime, log: &mut String) {
     let mut last_g = None;
     let mut last_h = None;
     for i in 0..30 {
+        let _ = g
+            .sdk
+            .observe_encrypted_link_recovery_marker(h.public_key.clone(), h.receiver_path.clone())
+            .await;
+        let _ = h
+            .sdk
+            .observe_encrypted_link_recovery_marker(g.public_key.clone(), g.receiver_path.clone())
+            .await;
         let rg = g
             .sdk
             .ensure_link_with_peer(h.public_key.clone(), h.receiver_path.clone(), 2)

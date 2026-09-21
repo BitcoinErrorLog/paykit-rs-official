@@ -619,6 +619,13 @@ where
         if stored_link_state.handshake_snapshot.is_none()
             && stored_link_state.link_snapshot.is_some()
         {
+            if allow_recovery {
+                return Ok(replacement_recovery_report(
+                    counterparty,
+                    stored_link_state.counterparty_receiver_path.clone(),
+                    Some(&stored_link_state),
+                ));
+            }
             return self
                 .confirm_linked_peer_receiver_noise(counterparty, stored_link_state, lease)
                 .await;
@@ -1280,6 +1287,23 @@ where
         state: EncryptedLinkStateRecord,
         lease: PeerLinkOperationLease,
     ) -> Result<LinkedPeerHandshakeReport> {
+        let peer_state = self
+            .storage
+            .transaction(|tx| {
+                Ok(tx
+                    .linked_peer(&counterparty, &lease.counterparty_receiver_path)
+                    .map(|peer| peer.state))
+            })
+            .await?;
+        if matches!(peer_state, Some(LinkedPeerState::RecoveryRequired))
+            || replacement_should_run(peer_state.as_ref(), Some(&state))
+        {
+            return Ok(replacement_recovery_report(
+                counterparty,
+                state.counterparty_receiver_path.clone(),
+                Some(&state),
+            ));
+        }
         let live = PubkyPublicKey::from_public_key(
             &self
                 .receiver_noise_public_key(&counterparty, &lease.counterparty_receiver_path)

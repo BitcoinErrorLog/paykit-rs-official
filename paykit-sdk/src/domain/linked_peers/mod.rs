@@ -942,14 +942,17 @@ where
                     )
                 });
             ensure_not_blocked(&peer)?;
-            peer.state = LinkedPeerState::Linked;
+            // Fingerprint capture must not clobber drain/replacement.
+            if peer.state != LinkedPeerState::RecoveryRequired {
+                peer.state = LinkedPeerState::Linked;
+                peer.failure_count = 0;
+            }
             peer.last_sync_at = Some(now);
-            peer.failure_count = 0;
-            tx.save_linked_peer(peer);
+            tx.save_linked_peer(peer.clone());
             let report = LinkedPeerHandshakeReport {
                 counterparty,
                 counterparty_receiver_path: link_state.counterparty_receiver_path.clone(),
-                state: LinkedPeerState::Linked,
+                state: peer.state,
                 generation: link_state.generation,
                 handshake_role: None,
             };

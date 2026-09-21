@@ -793,3 +793,46 @@ async fn test_ensure_linked_snapshot_does_not_short_circuit_without_receiver_loo
     assert_eq!(link_state.link_snapshot, Some(vec![1, 2, 3]));
     assert_eq!(link_state.peer_receiver_noise_public_key, None);
 }
+
+#[tokio::test]
+async fn test_ensure_recovery_required_fingerprint_does_not_short_circuit_to_linked() {
+    let storage = InMemoryStorage::new();
+    let counterparty = PubkyPublicKey::from_public_key(&pubky::Keypair::random().public_key());
+    seed_recovery_required_snapshot(&storage, counterparty.clone(), None).await;
+    storage
+        .transaction({
+            let counterparty = counterparty.clone();
+            move |tx| {
+                let mut state = tx
+                    .encrypted_link_state(&counterparty, &receiver_path())
+                    .expect("seeded link state");
+                state.peer_receiver_noise_public_key = Some(receiver_noise_public_key());
+                tx.save_encrypted_link_state(state);
+                Ok(())
+            }
+        })
+        .await
+        .unwrap();
+    let sdk = PaykitSdk::with_clock(
+        storage.clone(),
+        TestPubkySessionProvider { session: None },
+        TestPaymentAdapter,
+        PaykitSdkConfig::default(),
+        FixedClock,
+    );
+
+    let result = sdk
+        .ensure_link_with_peer(counterparty.clone(), receiver_path(), 2)
+        .await;
+
+    assert!(matches!(result, Err(PaykitSdkError::Identity { .. })));
+    let snapshot = storage.snapshot().unwrap();
+    let peer = &snapshot.linked_peers[&(counterparty.clone(), receiver_path())];
+    assert_eq!(peer.state, LinkedPeerState::RecoveryRequired);
+    let link_state = &snapshot.encrypted_link_states[&(counterparty.clone(), receiver_path())];
+    assert_eq!(link_state.link_snapshot, Some(vec![1, 2, 3]));
+    assert_eq!(
+        link_state.peer_receiver_noise_public_key,
+        Some(receiver_noise_public_key())
+    );
+}
